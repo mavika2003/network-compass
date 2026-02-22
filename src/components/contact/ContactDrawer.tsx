@@ -3,6 +3,7 @@ import { useContactStore } from '@/stores/contactStore';
 import { CATEGORY_COLORS } from '@/types';
 import TagPills from './TagPills';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { Mail, Phone, MapPin, Building, Trash2, Bell } from 'lucide-react';
 
 const ContactDrawer = () => {
@@ -11,6 +12,17 @@ const ContactDrawer = () => {
   const selectedContactId = useContactStore((s) => s.selectedContactId);
   const contacts = useContactStore((s) => s.contacts);
   const deleteContact = useContactStore((s) => s.deleteContact);
+  const updateContact = useContactStore((s) => s.updateContact);
+
+  const AVAILABLE_TAGS = Object.keys(CATEGORY_COLORS).filter((t) => t !== 'Default');
+
+  const toggleTag = (tag: string) => {
+    if (!contact) return;
+    const newTags = contact.categoryTags.includes(tag)
+      ? contact.categoryTags.filter((t) => t !== tag)
+      : [...contact.categoryTags, tag];
+    updateContact(contact.id, { categoryTags: newTags.length ? newTags : ['Default'] });
+  };
 
   const contact = contacts.find((c) => c.id === selectedContactId);
   if (!contact) return null;
@@ -48,20 +60,43 @@ const ContactDrawer = () => {
         </SheetHeader>
 
         <div className="space-y-6 mt-2">
-          <TagPills tags={contact.categoryTags} size="md" />
+          <div>
+            <span className="text-xs text-muted-foreground font-medium mb-2 block">Tags</span>
+            <div className="flex flex-wrap gap-1.5">
+              {AVAILABLE_TAGS.map((tag) => {
+                const active = contact.categoryTags.includes(tag);
+                const cat = CATEGORY_COLORS[tag];
+                return (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className="px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all border cursor-pointer"
+                    style={{
+                      backgroundColor: active ? `${cat.color}30` : 'transparent',
+                      borderColor: active ? cat.color : 'hsl(var(--border))',
+                      color: active ? cat.color : 'hsl(var(--muted-foreground))',
+                    }}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          {/* Relationship Strength */}
+          {/* Editable Priority Score */}
           <div>
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs text-muted-foreground font-medium">Relationship Strength</span>
-              <span className="text-xs font-bold" style={{ color: strengthColor }}>{contact.relationshipStrength}%</span>
+              <span className="text-xs text-muted-foreground font-medium">Priority Score</span>
+              <span className="text-xs font-bold" style={{ color: strengthColor }}>{contact.relationshipStrength}</span>
             </div>
-            <div className="h-2 rounded-full bg-secondary overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${contact.relationshipStrength}%`, backgroundColor: strengthColor }}
-              />
-            </div>
+            <Slider
+              value={[contact.relationshipStrength]}
+              onValueChange={([v]) => updateContact(contact.id, { relationshipStrength: v })}
+              min={0}
+              max={100}
+              step={1}
+            />
           </div>
 
           {/* Contact Info */}

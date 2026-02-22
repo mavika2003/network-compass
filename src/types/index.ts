@@ -64,5 +64,11 @@ export const CATEGORY_COLORS: Record<string, CategoryColor> = {
   Hackathon: { name: 'Hackathon', color: 'hsl(271 91% 65%)', glow: 'var(--glow-purple)' },
   Investors: { name: 'Investors', color: 'hsl(38 92% 50%)', glow: 'var(--glow-amber)' },
   Family: { name: 'Family', color: 'hsl(142 71% 45%)', glow: 'var(--glow-green)' },
+  Sports: { name: 'Sports', color: 'hsl(15 85% 55%)', glow: 'var(--glow-pink)' },
+  Travel: { name: 'Travel', color: 'hsl(195 85% 50%)', glow: 'var(--glow-blue)' },
+  Music: { name: 'Music', color: 'hsl(290 70% 55%)', glow: 'var(--glow-purple)' },
+  Community: { name: 'Community', color: 'hsl(160 60% 45%)', glow: 'var(--glow-green)' },
+  Neighbors: { name: 'Neighbors', color: 'hsl(45 80% 50%)', glow: 'var(--glow-amber)' },
+  School: { name: 'School', color: 'hsl(200 75% 55%)', glow: 'var(--glow-blue)' },
   Default: { name: 'Default', color: 'hsl(239 84% 67%)', glow: 'var(--glow-primary)' },
 };

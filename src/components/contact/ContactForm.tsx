@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { useContactStore } from '@/stores/contactStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus } from 'lucide-react';
@@ -17,7 +18,7 @@ const ContactForm = () => {
   const { user } = useAuth();
 
   const [form, setForm] = useState({
-    name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [] as string[],
+    name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [] as string[], relationshipStrength: 50,
   });
 
   const toggleTag = (tag: string) => {
@@ -33,10 +34,10 @@ const ContactForm = () => {
     addContact({
       ...form,
       source: 'manual',
-      relationshipStrength: 50,
+      relationshipStrength: form.relationshipStrength,
       categoryTags: form.categoryTags.length ? form.categoryTags : ['Default'],
     }, user.id);
-    setForm({ name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [] });
+    setForm({ name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [], relationshipStrength: 50 });
     setOpen(false);
   };
 
@@ -105,6 +106,19 @@ const ContactForm = () => {
                 );
               })}
             </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <Label className="text-xs text-muted-foreground">Priority Score</Label>
+              <span className="text-xs font-bold text-primary">{form.relationshipStrength}</span>
+            </div>
+            <Slider
+              value={[form.relationshipStrength]}
+              onValueChange={([v]) => setForm((f) => ({ ...f, relationshipStrength: v }))}
+              min={0}
+              max={100}
+              step={1}
+            />
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">Notes</Label>

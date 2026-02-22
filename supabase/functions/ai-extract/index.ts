@@ -9,9 +9,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { text } = await req.json();
+    const { text, existingTags } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const tagList = (existingTags || []).join(", ");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -24,7 +26,17 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a contact information extractor. Given text (from voice transcription, pasted notes, or conversation), extract structured contact information. Call the extract_contact function with the extracted data. If multiple contacts are mentioned, extract all of them. Be smart about inferring missing fields from context.`,
+            content: `You are a contact information extractor. Given text (from voice transcription, pasted notes, or conversation), extract structured contact information.
+
+IMPORTANT TAG RULES:
+- The user already has these tags: [${tagList}]
+- ALWAYS prefer reusing existing tags over creating new ones.
+- If the context suggests a tag similar to an existing one (e.g. "Gym" when "Sports" exists, or "Coworker" when "Work" exists), use the existing tag instead.
+- Only create a new tag if there is truly no similar existing tag.
+- Tags can be about ANY life area: hobbies, social groups, sports, travel, music, community, school, neighbors — not just work.
+- Estimate a relationship/priority strength from 0-100 based on how close or important the relationship seems from context.
+
+Call the extract_contacts function with the extracted data.`,
           },
           { role: "user", content: text },
         ],
@@ -52,11 +64,11 @@ serve(async (req) => {
                         suggestedTags: {
                           type: "array",
                           items: { type: "string" },
-                          description: "Suggested category tags like Friends, Work, Hackathon, Investors, Family",
+                          description: "Category tags — prefer reusing from existing tags list. Can be lifestyle, hobby, social, or professional tags.",
                         },
                         relationshipStrength: {
                           type: "number",
-                          description: "Estimated relationship strength 0-100 based on context",
+                          description: "Estimated priority/relationship strength 0-100 based on context closeness",
                         },
                       },
                       required: ["name"],
