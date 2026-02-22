@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { useContactStore } from '@/stores/contactStore';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,7 +29,6 @@ type Mode = 'idle' | 'recording' | 'processing' | 'preview';
 const AIContactInput = () => {
   const [mode, setMode] = useState<Mode>('idle');
   const [open, setOpen] = useState(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [transcript, setTranscript] = useState('');
   const [extractedContacts, setExtractedContacts] = useState<ExtractedContact[]>([]);
@@ -36,6 +36,7 @@ const AIContactInput = () => {
   const [saving, setSaving] = useState(false);
   const recognitionRef = useRef<any>(null);
   const addContact = useContactStore((s) => s.addContact);
+  const contacts = useContactStore((s) => s.contacts);
   const { user } = useAuth();
 
   const startRecording = useCallback(() => {
@@ -69,23 +70,28 @@ const AIContactInput = () => {
     };
 
     recognition.onend = () => {
-      if (mode === 'recording') {
-        setTranscript(finalTranscript.trim());
-      }
+      setTranscript(finalTranscript.trim());
     };
 
     recognitionRef.current = recognition;
     recognition.start();
     setMode('recording');
     setTranscript('');
-    setOpen(true);
-  }, [mode]);
+  }, []);
 
   const stopRecording = useCallback(async () => {
     recognitionRef.current?.stop();
     setMode('processing');
     await extractFromText(transcript);
   }, [transcript]);
+
+  // Collect existing tags from all contacts for AI similarity matching
+  const getExistingTags = (): string[] => {
+    const tagSet = new Set<string>();
+    contacts.forEach((c) => c.categoryTags?.forEach((t) => tagSet.add(t)));
+    Object.keys(CATEGORY_COLORS).forEach((t) => tagSet.add(t));
+    return Array.from(tagSet);
+  };
 
   const extractFromText = async (text: string) => {
     if (!text.trim()) {
@@ -96,8 +102,9 @@ const AIContactInput = () => {
 
     setMode('processing');
     try {
+      const existingTags = getExistingTags();
       const { data, error } = await supabase.functions.invoke('ai-extract', {
-        body: { text },
+        body: { text, existingTags },
       });
 
       if (error) throw error;
@@ -117,9 +124,7 @@ const AIContactInput = () => {
     }
   };
 
-  const handlePasteExtract = async () => {
-    setPasteOpen(false);
-    setOpen(true);
+  const handleExtract = async () => {
     await extractFromText(pasteText);
   };
 
@@ -147,6 +152,7 @@ const AIContactInput = () => {
         setMode('idle');
         setOpen(false);
         setExtractedContacts([]);
+        setPasteText('');
       }
     } catch (err: any) {
       toast({ title: 'Error', description: err.message, variant: 'destructive' });
@@ -162,6 +168,7 @@ const AIContactInput = () => {
       setMode('idle');
       setOpen(false);
       setExtractedContacts([]);
+      setPasteText('');
     }
   };
 
@@ -171,52 +178,59 @@ const AIContactInput = () => {
     );
   };
 
+  const toggleTag = (tag: string) => {
+    const current = extractedContacts[currentIndex];
+    const tags = current.suggestedTags || [];
+    const newTags = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
+    updateField('suggestedTags', newTags);
+  };
+
   const current = extractedContacts[currentIndex];
+  const AVAILABLE_TAGS = Object.keys(CATEGORY_COLORS).filter((t) => t !== 'Default');
 
   return (
     <>
-      {/* Sidebar buttons */}
+      {/* Single sidebar button */}
       <button
-        onClick={startRecording}
+        onClick={() => { setPasteText(''); setMode('idle'); setOpen(true); }}
         className="flex items-center justify-center lg:justify-start gap-2 px-3 py-2.5 rounded-lg bg-primary/10 text-primary text-sm cursor-pointer hover:bg-primary/20 transition-colors w-full"
       >
-        <Mic className="w-5 h-5 shrink-0" />
-        <span className="hidden lg:block font-medium">Voice Add</span>
-      </button>
-      <button
-        onClick={() => { setPasteText(''); setPasteOpen(true); }}
-        className="flex items-center justify-center lg:justify-start gap-2 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors w-full"
-      >
-        <ClipboardPaste className="w-5 h-5 shrink-0" />
-        <span className="hidden lg:block">Paste & Extract</span>
+        <Sparkles className="w-5 h-5 shrink-0" />
+        <span className="hidden lg:block font-medium">AI Extract</span>
       </button>
 
-      {/* Paste dialog */}
-      <Dialog open={pasteOpen} onOpenChange={setPasteOpen}>
-        <DialogContent className="bg-card border-border max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-foreground flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" /> AI Contact Parser
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Paste any text — meeting notes, emails, bios — and AI will extract contact information.</p>
-            <Textarea
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              placeholder="e.g. Met Sarah Chen at the TechCrunch event. She's a partner at Sequoia, based in SF. sarah@sequoia.com"
-              className="bg-secondary border-border min-h-[120px]"
-            />
-            <Button onClick={handlePasteExtract} disabled={!pasteText.trim()} className="w-full">
-              <Sparkles className="w-4 h-4 mr-2" /> Extract Contacts
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Voice / Preview dialog */}
+      {/* Combined dialog */}
       <Dialog open={open} onOpenChange={(o) => { if (!o) { setMode('idle'); recognitionRef.current?.stop(); } setOpen(o); }}>
         <DialogContent className="bg-card border-border max-w-md">
+          {mode === 'idle' && (
+            <div className="space-y-4">
+              <DialogHeader>
+                <DialogTitle className="text-foreground flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" /> AI Contact Parser
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">Paste any text — meeting notes, emails, bios — or use voice input, and AI will extract contact information.</p>
+              <div className="relative">
+                <Textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder="e.g. Met Sarah at the yoga class. She's also into hiking and lives in Brooklyn..."
+                  className="bg-secondary border-border min-h-[120px] pr-12"
+                />
+                <button
+                  onClick={startRecording}
+                  className="absolute bottom-3 right-3 p-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  title="Voice input"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              </div>
+              <Button onClick={handleExtract} disabled={!pasteText.trim()} className="w-full">
+                <Sparkles className="w-4 h-4 mr-2" /> Extract Contacts
+              </Button>
+            </div>
+          )}
+
           {mode === 'recording' && (
             <div className="text-center space-y-6 py-6">
               <div className="w-20 h-20 rounded-full bg-destructive/20 flex items-center justify-center mx-auto animate-pulse">
@@ -252,18 +266,16 @@ const AIContactInput = () => {
                     <Sparkles className="w-5 h-5 text-primary" />
                     {extractedContacts.length > 1 ? `Contact ${currentIndex + 1} of ${extractedContacts.length}` : 'Extracted Contact'}
                   </span>
-                  <div className="flex gap-1">
-                    {extractedContacts.length > 1 && (
-                      <>
-                        <Button size="icon" variant="ghost" disabled={currentIndex === 0} onClick={() => setCurrentIndex((i) => i - 1)}>
-                          <ChevronLeft className="w-4 h-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" disabled={currentIndex === extractedContacts.length - 1} onClick={() => setCurrentIndex((i) => i + 1)}>
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                  {extractedContacts.length > 1 && (
+                    <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" disabled={currentIndex === 0} onClick={() => setCurrentIndex((i) => i - 1)}>
+                        <ChevronLeft className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" disabled={currentIndex === extractedContacts.length - 1} onClick={() => setCurrentIndex((i) => i + 1)}>
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </DialogTitle>
               </DialogHeader>
 
@@ -294,29 +306,46 @@ const AIContactInput = () => {
                 </div>
               </div>
 
-              {current.suggestedTags && current.suggestedTags.length > 0 && (
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-2 block">Suggested Tags</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {current.suggestedTags.map((tag) => {
-                      const cat = CATEGORY_COLORS[tag];
-                      return (
-                        <span
-                          key={tag}
-                          className="px-3 py-1 rounded-full text-xs font-medium border"
-                          style={{
-                            backgroundColor: cat ? `${cat.color}30` : 'hsl(var(--secondary))',
-                            borderColor: cat?.color || 'hsl(var(--border))',
-                            color: cat?.color || 'hsl(var(--muted-foreground))',
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      );
-                    })}
-                  </div>
+              {/* Editable Tags */}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Tags</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {AVAILABLE_TAGS.map((tag) => {
+                    const active = current.suggestedTags?.includes(tag);
+                    const cat = CATEGORY_COLORS[tag];
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className="px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all border"
+                        style={{
+                          backgroundColor: active ? `${cat.color}30` : 'transparent',
+                          borderColor: active ? cat.color : 'hsl(var(--border))',
+                          color: active ? cat.color : 'hsl(var(--muted-foreground))',
+                        }}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+
+              {/* Editable Priority Score */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <Label className="text-xs text-muted-foreground">Priority Score</Label>
+                  <span className="text-xs font-bold text-primary">{current.relationshipStrength ?? 50}</span>
+                </div>
+                <Slider
+                  value={[current.relationshipStrength ?? 50]}
+                  onValueChange={([v]) => updateField('relationshipStrength', v)}
+                  min={0}
+                  max={100}
+                  step={1}
+                />
+              </div>
 
               {current.notes && (
                 <div>
