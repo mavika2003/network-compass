@@ -1,1 +1,10 @@
 project_id = "jrebsrdxgvkdiirhvthv"
+
+[functions.ai-extract]
+verify_jwt = false
+
+[functions.ai-search]
+verify_jwt = false
+
+[functions.ai-reminders]
+verify_jwt = false
