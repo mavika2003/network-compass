@@ -1,42 +1,39 @@
 import { create } from 'zustand';
-import { Contact, CATEGORY_COLORS } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { CATEGORY_COLORS } from '@/types';
 
-const DEMO_CONTACTS: Contact[] = [
-  { id: '1', name: 'Priya Sharma', company: 'Sequoia Capital', jobTitle: 'Partner', location: 'San Francisco', email: 'priya@seq.com', categoryTags: ['Investors', 'Work'], relationshipStrength: 92, source: 'manual', nodePositionX: 0, nodePositionY: 0, createdAt: '2025-12-01' },
-  { id: '2', name: 'Jake Morrison', company: 'Stripe', jobTitle: 'Engineer', location: 'NYC', email: 'jake@stripe.com', categoryTags: ['Work', 'Hackathon'], relationshipStrength: 78, source: 'voice', nodePositionX: 250, nodePositionY: -120, createdAt: '2026-01-10' },
-  { id: '3', name: 'Sofia Chen', company: 'MIT', jobTitle: 'Student', location: 'Boston', categoryTags: ['Friends', 'Hackathon'], relationshipStrength: 85, source: 'manual', nodePositionX: -200, nodePositionY: -80, createdAt: '2025-11-15' },
-  { id: '4', name: 'Marcus Williams', company: 'Google', jobTitle: 'PM', location: 'Seattle', email: 'marcus@google.com', categoryTags: ['Work'], relationshipStrength: 65, source: 'manual', nodePositionX: 300, nodePositionY: 150, createdAt: '2026-01-20' },
-  { id: '5', name: 'Luna Park', jobTitle: 'Designer', location: 'LA', categoryTags: ['Friends'], relationshipStrength: 88, source: 'voice', nodePositionX: -280, nodePositionY: 130, createdAt: '2025-10-05' },
-  { id: '6', name: 'Omar Hassan', company: 'YC', jobTitle: 'Fellow', location: 'SF', categoryTags: ['Investors', 'Hackathon'], relationshipStrength: 71, source: 'manual', nodePositionX: 150, nodePositionY: -250, createdAt: '2026-02-01' },
-  { id: '7', name: 'Emily Zhang', company: 'Figma', jobTitle: 'Design Lead', location: 'SF', categoryTags: ['Work', 'Friends'], relationshipStrength: 95, source: 'manual', nodePositionX: -100, nodePositionY: 200, createdAt: '2025-09-20' },
-  { id: '8', name: 'Mom', categoryTags: ['Family'], relationshipStrength: 100, source: 'manual', nodePositionX: -350, nodePositionY: -20, createdAt: '2025-01-01' },
-  { id: '9', name: 'Dad', categoryTags: ['Family'], relationshipStrength: 100, source: 'manual', nodePositionX: -350, nodePositionY: 80, createdAt: '2025-01-01' },
-  { id: '10', name: 'Aiden Brooks', company: 'TikTok', jobTitle: 'Growth', location: 'NYC', categoryTags: ['Work'], relationshipStrength: 55, source: 'manual', nodePositionX: 400, nodePositionY: 0, createdAt: '2026-02-10' },
-  { id: '11', name: 'Zara Patel', company: 'Stanford', jobTitle: 'Researcher', location: 'Palo Alto', categoryTags: ['Hackathon', 'Friends'], relationshipStrength: 73, source: 'voice', nodePositionX: -50, nodePositionY: -200, createdAt: '2026-01-28' },
-  { id: '12', name: 'Leo Tanaka', company: 'Netflix', jobTitle: 'SWE', location: 'LA', categoryTags: ['Work', 'Friends'], relationshipStrength: 60, source: 'manual', nodePositionX: 200, nodePositionY: 250, createdAt: '2026-02-15' },
-];
-
-const DEMO_CONNECTIONS = [
-  { contactAId: '1', contactBId: '6' },
-  { contactAId: '2', contactBId: '4' },
-  { contactAId: '3', contactBId: '5' },
-  { contactAId: '3', contactBId: '11' },
-  { contactAId: '7', contactBId: '5' },
-  { contactAId: '8', contactBId: '9' },
-  { contactAId: '2', contactBId: '12' },
-  { contactAId: '6', contactBId: '11' },
-  { contactAId: '4', contactBId: '10' },
-];
+interface Contact {
+  id: string;
+  name: string;
+  description?: string | null;
+  company?: string | null;
+  jobTitle?: string | null;
+  location?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  gender?: string | null;
+  notes?: string | null;
+  source: string;
+  categoryTags: string[];
+  relationshipStrength: number;
+  nodePositionX?: number | null;
+  nodePositionY?: number | null;
+  lastContactedAt?: string | null;
+  createdAt: string;
+}
 
 interface ContactStore {
   contacts: Contact[];
-  connections: { contactAId: string; contactBId: string }[];
+  connections: { id: string; contactAId: string; contactBId: string; relationshipType: string }[];
   selectedContactId: string | null;
   drawerOpen: boolean;
   activeFilters: string[];
-  addContact: (contact: Omit<Contact, 'id' | 'createdAt'>) => void;
-  updateContact: (id: string, updates: Partial<Contact>) => void;
-  deleteContact: (id: string) => void;
+  loading: boolean;
+  fetchContacts: (userId: string) => Promise<void>;
+  addContact: (contact: Omit<Contact, 'id' | 'createdAt'>, userId: string) => Promise<void>;
+  updateContact: (id: string, updates: Partial<Contact>) => Promise<void>;
+  deleteContact: (id: string) => Promise<void>;
   selectContact: (id: string | null) => void;
   setDrawerOpen: (open: boolean) => void;
   toggleFilter: (tag: string) => void;
@@ -44,29 +41,106 @@ interface ContactStore {
   updateNodePosition: (id: string, x: number, y: number) => void;
 }
 
-export const useContactStore = create<ContactStore>((set) => ({
-  contacts: DEMO_CONTACTS,
-  connections: DEMO_CONNECTIONS,
+const mapRow = (row: any): Contact => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  company: row.company,
+  jobTitle: row.job_title,
+  location: row.location,
+  email: row.email,
+  phone: row.phone,
+  avatarUrl: row.avatar_url,
+  gender: row.gender,
+  notes: row.notes,
+  source: row.source || 'manual',
+  categoryTags: row.category_tags || [],
+  relationshipStrength: row.relationship_strength ?? 50,
+  nodePositionX: row.node_position_x,
+  nodePositionY: row.node_position_y,
+  lastContactedAt: row.last_contacted_at,
+  createdAt: row.created_at,
+});
+
+export const useContactStore = create<ContactStore>((set, get) => ({
+  contacts: [],
+  connections: [],
   selectedContactId: null,
   drawerOpen: false,
   activeFilters: [],
+  loading: true,
 
-  addContact: (contact) => set((state) => ({
-    contacts: [...state.contacts, {
-      ...contact,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-    }],
-  })),
+  fetchContacts: async (userId: string) => {
+    set({ loading: true });
+    const [contactsRes, connectionsRes] = await Promise.all([
+      supabase.from('contacts').select('*').eq('user_id', userId),
+      supabase.from('connections').select('*').eq('user_id', userId),
+    ]);
 
-  updateContact: (id, updates) => set((state) => ({
-    contacts: state.contacts.map((c) => c.id === id ? { ...c, ...updates } : c),
-  })),
+    set({
+      contacts: (contactsRes.data || []).map(mapRow),
+      connections: (connectionsRes.data || []).map((c: any) => ({
+        id: c.id,
+        contactAId: c.contact_a_id,
+        contactBId: c.contact_b_id,
+        relationshipType: c.relationship_type || 'mutual',
+      })),
+      loading: false,
+    });
+  },
 
-  deleteContact: (id) => set((state) => ({
-    contacts: state.contacts.filter((c) => c.id !== id),
-    connections: state.connections.filter((conn) => conn.contactAId !== id && conn.contactBId !== id),
-  })),
+  addContact: async (contact, userId) => {
+    const { data, error } = await supabase.from('contacts').insert({
+      user_id: userId,
+      name: contact.name,
+      description: contact.description || null,
+      company: contact.company || null,
+      job_title: contact.jobTitle || null,
+      location: contact.location || null,
+      email: contact.email || null,
+      phone: contact.phone || null,
+      avatar_url: contact.avatarUrl || null,
+      gender: contact.gender || null,
+      notes: contact.notes || null,
+      source: contact.source || 'manual',
+      category_tags: contact.categoryTags || [],
+      relationship_strength: contact.relationshipStrength ?? 50,
+      node_position_x: contact.nodePositionX ?? Math.random() * 600 - 300,
+      node_position_y: contact.nodePositionY ?? Math.random() * 400 - 200,
+    } as any).select().single();
+
+    if (data) {
+      set((state) => ({ contacts: [...state.contacts, mapRow(data)] }));
+    }
+  },
+
+  updateContact: async (id, updates) => {
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.company !== undefined) dbUpdates.company = updates.company;
+    if (updates.jobTitle !== undefined) dbUpdates.job_title = updates.jobTitle;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.categoryTags !== undefined) dbUpdates.category_tags = updates.categoryTags;
+    if (updates.relationshipStrength !== undefined) dbUpdates.relationship_strength = updates.relationshipStrength;
+    if (updates.nodePositionX !== undefined) dbUpdates.node_position_x = updates.nodePositionX;
+    if (updates.nodePositionY !== undefined) dbUpdates.node_position_y = updates.nodePositionY;
+
+    await supabase.from('contacts').update(dbUpdates).eq('id', id);
+    set((state) => ({
+      contacts: state.contacts.map((c) => c.id === id ? { ...c, ...updates } : c),
+    }));
+  },
+
+  deleteContact: async (id) => {
+    await supabase.from('contacts').delete().eq('id', id);
+    set((state) => ({
+      contacts: state.contacts.filter((c) => c.id !== id),
+      connections: state.connections.filter((conn) => conn.contactAId !== id && conn.contactBId !== id),
+    }));
+  },
 
   selectContact: (id) => set({ selectedContactId: id, drawerOpen: id !== null }),
   setDrawerOpen: (open) => set({ drawerOpen: open, selectedContactId: open ? undefined : null }),
@@ -79,7 +153,11 @@ export const useContactStore = create<ContactStore>((set) => ({
 
   clearFilters: () => set({ activeFilters: [] }),
 
-  updateNodePosition: (id, x, y) => set((state) => ({
-    contacts: state.contacts.map((c) => c.id === id ? { ...c, nodePositionX: x, nodePositionY: y } : c),
-  })),
+  updateNodePosition: (id, x, y) => {
+    // Optimistic update, then persist
+    set((state) => ({
+      contacts: state.contacts.map((c) => c.id === id ? { ...c, nodePositionX: x, nodePositionY: y } : c),
+    }));
+    supabase.from('contacts').update({ node_position_x: x, node_position_y: y } as any).eq('id', id);
+  },
 }));
