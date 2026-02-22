@@ -14,7 +14,292 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      connections: {
+        Row: {
+          contact_a_id: string
+          contact_b_id: string
+          created_at: string | null
+          id: string
+          relationship_type: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_a_id: string
+          contact_b_id: string
+          created_at?: string | null
+          id?: string
+          relationship_type?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_a_id?: string
+          contact_b_id?: string
+          created_at?: string | null
+          id?: string
+          relationship_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connections_contact_a_id_fkey"
+            columns: ["contact_a_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "connections_contact_b_id_fkey"
+            columns: ["contact_b_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          avatar_url: string | null
+          category_tags: string[] | null
+          company: string | null
+          created_at: string | null
+          description: string | null
+          email: string | null
+          gender: string | null
+          id: string
+          job_title: string | null
+          last_contacted_at: string | null
+          location: string | null
+          name: string
+          node_position_x: number | null
+          node_position_y: number | null
+          notes: string | null
+          phone: string | null
+          relationship_strength: number | null
+          source: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          category_tags?: string[] | null
+          company?: string | null
+          created_at?: string | null
+          description?: string | null
+          email?: string | null
+          gender?: string | null
+          id?: string
+          job_title?: string | null
+          last_contacted_at?: string | null
+          location?: string | null
+          name: string
+          node_position_x?: number | null
+          node_position_y?: number | null
+          notes?: string | null
+          phone?: string | null
+          relationship_strength?: number | null
+          source?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          category_tags?: string[] | null
+          company?: string | null
+          created_at?: string | null
+          description?: string | null
+          email?: string | null
+          gender?: string | null
+          id?: string
+          job_title?: string | null
+          last_contacted_at?: string | null
+          location?: string | null
+          name?: string
+          node_position_x?: number | null
+          node_position_y?: number | null
+          notes?: string | null
+          phone?: string | null
+          relationship_strength?: number | null
+          source?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      interaction_log: {
+        Row: {
+          contact_id: string | null
+          created_at: string | null
+          id: string
+          interaction_type: string | null
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string | null
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interaction_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      posts: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          image_url: string | null
+          location: string | null
+          post_type: string | null
+          user_id: string
+          visibility_tags: string[] | null
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          post_type?: string | null
+          user_id: string
+          visibility_tags?: string[] | null
+        }
+        Update: {
+          content?: string | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          image_url?: string | null
+          location?: string | null
+          post_type?: string | null
+          user_id?: string
+          visibility_tags?: string[] | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          job_title: string | null
+          location: string | null
+          name: string | null
+          onboarding_completed: boolean | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          email?: string | null
+          id: string
+          job_title?: string | null
+          location?: string | null
+          name?: string | null
+          onboarding_completed?: boolean | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          job_title?: string | null
+          location?: string | null
+          name?: string | null
+          onboarding_completed?: boolean | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      reminders: {
+        Row: {
+          completed: boolean | null
+          contact_id: string | null
+          created_at: string | null
+          due_at: string | null
+          id: string
+          message: string | null
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          contact_id?: string | null
+          created_at?: string | null
+          due_at?: string | null
+          id?: string
+          message?: string | null
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          contact_id?: string | null
+          created_at?: string | null
+          due_at?: string | null
+          id?: string
+          message?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tags: {
+        Row: {
+          ai_generated: boolean | null
+          color: string | null
+          created_at: string | null
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          ai_generated?: boolean | null
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

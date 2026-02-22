@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useContactStore } from '@/stores/contactStore';
+import { useAuth } from '@/hooks/useAuth';
 import { Plus } from 'lucide-react';
 import { CATEGORY_COLORS } from '@/types';
 
@@ -13,6 +14,7 @@ const AVAILABLE_TAGS = Object.keys(CATEGORY_COLORS).filter((t) => t !== 'Default
 const ContactForm = () => {
   const [open, setOpen] = useState(false);
   const addContact = useContactStore((s) => s.addContact);
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [] as string[],
@@ -27,13 +29,13 @@ const ContactForm = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !user) return;
     addContact({
       ...form,
       source: 'manual',
       relationshipStrength: 50,
       categoryTags: form.categoryTags.length ? form.categoryTags : ['Default'],
-    });
+    }, user.id);
     setForm({ name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [] });
     setOpen(false);
   };
