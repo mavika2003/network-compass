@@ -168,7 +168,7 @@ const MindMapControls = ({ onSolarLayout, onResetLayout, solarActive }: MindMapC
 
         {allTags.map((tag) => {
           const active = activeFilters.includes(tag);
-          const cat = CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default;
+          const cat = CATEGORY_COLORS[tag] || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
           return (
             <button
               key={tag}

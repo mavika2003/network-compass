@@ -53,6 +53,13 @@ Return up to 20 actions.`
 1. Contacts sharing the same tags (most important)
 2. Contacts at the same company
 3. Contacts with complementary roles (e.g. mentor-mentee)
+
+IMPORTANT: Do NOT use "mutual" as a catch-all relationship type. Choose the most appropriate type:
+- "colleague" for contacts at the same company or professional context
+- "friend" for contacts sharing social/personal tags
+- "mentor" for contacts with complementary seniority/experience levels
+- Only use "mutual" when contacts have a genuine known mutual relationship
+
 Return up to 10 suggestions. Use action type "add" for all suggestions.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

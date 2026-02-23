@@ -163,3 +163,12 @@
 .sun-rotate-ring-reverse {
   animation: sun-rotate-reverse 30s linear infinite;
 }
+
+@keyframes sun-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.03); }
+}
+
+.sun-breathe {
+  animation: sun-breathe 5s ease-in-out infinite;
+}

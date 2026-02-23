@@ -9,12 +9,16 @@ import { useContactStore } from '@/stores/contactStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus } from 'lucide-react';
 import { CATEGORY_COLORS } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 
-const AVAILABLE_TAGS = Object.keys(CATEGORY_COLORS).filter((t) => t !== 'Default');
+const AVAILABLE_TAGS = Object.keys(CATEGORY_COLORS);
 
 const ContactForm = () => {
   const [open, setOpen] = useState(false);
   const addContact = useContactStore((s) => s.addContact);
+  const updateContact = useContactStore((s) => s.updateContact);
+  const contacts = useContactStore((s) => s.contacts);
   const { user } = useAuth();
 
   const [form, setForm] = useState({
@@ -28,15 +32,40 @@ const ContactForm = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !user) return;
-    addContact({
+
+    const contactId = await addContact({
       ...form,
       source: 'manual',
       relationshipStrength: form.relationshipStrength,
-      categoryTags: form.categoryTags.length ? form.categoryTags : ['Default'],
+      categoryTags: form.categoryTags,
     }, user.id);
+
+    // If no tags were manually selected, use AI to generate them
+    if (form.categoryTags.length === 0 && contactId) {
+      const existingTags = Array.from(new Set(contacts.flatMap((c) => c.categoryTags)));
+      try {
+        const { data, error } = await supabase.functions.invoke('ai-tag-contacts', {
+          body: {
+            contacts: [{ id: contactId, name: form.name, company: form.company, jobTitle: form.jobTitle, email: form.email, notes: form.notes }],
+            existingTags,
+          },
+        });
+        if (!error && data?.results?.[0]) {
+          const result = data.results[0];
+          await updateContact(contactId, {
+            categoryTags: result.suggestedTags || [],
+            relationshipStrength: result.relationshipStrength ?? form.relationshipStrength,
+          });
+          toast({ title: 'AI tagged contact', description: (result.suggestedTags || []).join(', ') });
+        }
+      } catch {
+        // AI tagging failed silently, contact still saved
+      }
+    }
+
     setForm({ name: '', company: '', jobTitle: '', location: '', email: '', phone: '', notes: '', categoryTags: [], relationshipStrength: 50 });
     setOpen(false);
   };
@@ -84,7 +113,7 @@ const ContactForm = () => {
             </div>
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground mb-2 block">Tags</Label>
+            <Label className="text-xs text-muted-foreground mb-2 block">Tags <span className="text-muted-foreground/60">(leave empty for AI auto-tag)</span></Label>
             <div className="flex flex-wrap gap-2">
               {AVAILABLE_TAGS.map((tag) => {
                 const active = form.categoryTags.includes(tag);

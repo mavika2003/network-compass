@@ -20,8 +20,8 @@ const ContactNode = memo(({ data }: NodeProps) => {
   const selectContact = useContactStore((s) => s.selectContact);
   const activeFilters = useContactStore((s) => s.activeFilters);
 
-  const primaryTag = categoryTags[0] || 'Default';
-  const catColor = CATEGORY_COLORS[primaryTag] || CATEGORY_COLORS.Default;
+  const primaryTag = categoryTags[0];
+  const catColor = (primaryTag && CATEGORY_COLORS[primaryTag]) || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
 
   const isTop = relationshipStrength >= 85;
   const size = isTop ? 72 : 56;

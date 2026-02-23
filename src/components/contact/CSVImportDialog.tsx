@@ -5,6 +5,7 @@ import { Upload, FileText, Loader2 } from 'lucide-react';
 import { useContactStore } from '@/stores/contactStore';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ParsedContact {
   name: string;
@@ -76,6 +77,8 @@ const CSVImportDialog = () => {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const addContact = useContactStore((s) => s.addContact);
+  const updateContact = useContactStore((s) => s.updateContact);
+  const contacts = useContactStore((s) => s.contacts);
   const { user } = useAuth();
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,10 +96,12 @@ const CSVImportDialog = () => {
   const handleImport = async () => {
     if (!user || parsed.length === 0) return;
     setImporting(true);
-    let count = 0;
+    
+    const importedContacts: { id: string; name: string; company: string; jobTitle: string; email: string; notes: string }[] = [];
+    
     for (const c of parsed) {
       try {
-        await addContact({
+        const contactId = await addContact({
           name: c.name,
           email: c.email || null,
           company: c.company || null,
@@ -107,12 +112,50 @@ const CSVImportDialog = () => {
           relationshipStrength: 50,
           lastContactedAt: c.connectedOn ? new Date(c.connectedOn).toISOString() : null,
         } as any, user.id);
-        count++;
+        
+        if (contactId) {
+          importedContacts.push({
+            id: contactId,
+            name: c.name,
+            company: c.company,
+            jobTitle: c.jobTitle,
+            email: c.email,
+            notes: c.linkedinUrl,
+          });
+        }
       } catch {
         // skip failed rows
       }
     }
-    toast({ title: `${count} contacts imported` });
+
+    toast({ title: `${importedContacts.length} contacts imported`, description: 'Running AI auto-tagging...' });
+
+    // AI auto-tag all imported contacts
+    if (importedContacts.length > 0) {
+      try {
+        const existingTags = Array.from(new Set(contacts.flatMap((ct) => ct.categoryTags)));
+        const { data, error } = await supabase.functions.invoke('ai-tag-contacts', {
+          body: { contacts: importedContacts, existingTags },
+        });
+
+        if (!error && data?.results) {
+          let taggedCount = 0;
+          for (const result of data.results) {
+            if (result.id && result.suggestedTags?.length) {
+              await updateContact(result.id, {
+                categoryTags: result.suggestedTags,
+                relationshipStrength: result.relationshipStrength ?? 50,
+              });
+              taggedCount++;
+            }
+          }
+          toast({ title: `AI tagged ${taggedCount} contacts` });
+        }
+      } catch {
+        toast({ title: 'AI tagging skipped', description: 'Contacts imported without tags', variant: 'destructive' });
+      }
+    }
+
     setParsed([]);
     setImporting(false);
     setOpen(false);
@@ -133,7 +176,7 @@ const CSVImportDialog = () => {
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Upload your LinkedIn <code className="text-xs bg-secondary px-1 py-0.5 rounded">Connections.csv</code> file.
+            Upload your LinkedIn <code className="text-xs bg-secondary px-1 py-0.5 rounded">Connections.csv</code> file. AI will auto-tag imported contacts.
           </p>
           <input
             ref={fileRef}

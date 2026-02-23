@@ -9,7 +9,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { contacts, tags } = await req.json();
+    const { contacts, existingTags } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -17,9 +17,10 @@ serve(async (req) => {
       id: c.id,
       name: c.name,
       company: c.company,
-      email: c.email,
       jobTitle: c.jobTitle,
-      categoryTags: c.categoryTags,
+      email: c.email,
+      notes: c.notes,
+      location: c.location,
     }));
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -33,72 +34,50 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a data deduplication expert. Given a list of contacts AND a list of tags, identify:
+            content: `You are a contact categorization expert. Given contact details, suggest 1-3 category tags per contact.
 
-1. CONTACT DUPLICATES: Likely duplicate contacts that should be merged. Look for:
-   - Very similar names (e.g. "Columbia" vs "Columbia University", "John Smith" vs "John W. Smith")
-   - Same email addresses
-   - Same company + very similar name
-
-2. TAG DUPLICATES: Similar or redundant tags that should be merged. Look for:
-   - Nearly identical tags (e.g. "Tech" vs "Technology", "Work" vs "Job", "Friends" vs "Friend")
-   - Subset tags (e.g. "AI" vs "AI/ML")
-
-For each duplicate pair, choose which to KEEP (the more complete/formal one) and which to MERGE INTO it.
-Only suggest HIGH-CONFIDENCE duplicates. Return empty arrays if none found.`,
+IMPORTANT RULES:
+1. STRONGLY prefer reusing tags from the existing tags list: ${JSON.stringify(existingTags || [])}
+2. Only create a NEW tag if absolutely no existing tag fits the contact's profile
+3. Tags should be broad categories (e.g., "Work", "Friends", "Family", "Tech", "Investors") not specific descriptions
+4. Also estimate a relationship strength score from 0-100 based on how much info is available (more data = higher score)
+5. If you create new tags, keep them to single words or short phrases (max 2 words)`,
           },
           {
             role: "user",
-            content: `Contacts:\n${JSON.stringify(contactSummary, null, 2)}\n\nTags:\n${JSON.stringify(tags || [], null, 2)}`,
+            content: `Contacts to tag:\n${JSON.stringify(contactSummary, null, 2)}`,
           },
         ],
         tools: [
           {
             type: "function",
             function: {
-              name: "suggest_merges",
-              description: "Return suggested contact and tag merges",
+              name: "tag_contacts",
+              description: "Return suggested tags and relationship strength for each contact",
               parameters: {
                 type: "object",
                 properties: {
-                  merges: {
+                  results: {
                     type: "array",
-                    description: "Contact merge suggestions",
                     items: {
                       type: "object",
                       properties: {
-                        keepId: { type: "string", description: "ID of contact to keep" },
-                        mergeId: { type: "string", description: "ID of contact to merge into the kept one" },
-                        keepName: { type: "string", description: "Name of contact to keep" },
-                        mergeName: { type: "string", description: "Name of contact being merged" },
-                        reason: { type: "string", description: "Why these are duplicates" },
+                        id: { type: "string", description: "Contact ID" },
+                        suggestedTags: { type: "array", items: { type: "string" }, description: "1-3 category tags" },
+                        relationshipStrength: { type: "number", description: "0-100 relationship strength estimate" },
                       },
-                      required: ["keepId", "mergeId", "keepName", "mergeName", "reason"],
-                      additionalProperties: false,
-                    },
-                  },
-                  tagMerges: {
-                    type: "array",
-                    description: "Tag merge suggestions",
-                    items: {
-                      type: "object",
-                      properties: {
-                        keepTag: { type: "string", description: "Tag name to keep" },
-                        mergeTag: { type: "string", description: "Tag name to merge into the kept one" },
-                        reason: { type: "string", description: "Why these tags are duplicates" },
-                      },
-                      required: ["keepTag", "mergeTag", "reason"],
+                      required: ["id", "suggestedTags", "relationshipStrength"],
                       additionalProperties: false,
                     },
                   },
                 },
-                required: ["merges", "tagMerges"],
+                required: ["results"],
                 additionalProperties: false,
               },
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "suggest_merges" } },
+        tool_choice: { type: "function", function: { name: "tag_contacts" } },
       }),
     });
 
@@ -128,7 +107,7 @@ Only suggest HIGH-CONFIDENCE duplicates. Return empty arrays if none found.`,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("ai-merge error:", e);
+    console.error("ai-tag-contacts error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

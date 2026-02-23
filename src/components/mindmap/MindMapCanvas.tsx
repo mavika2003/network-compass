@@ -130,13 +130,14 @@ const MindMapCanvas = () => {
     if (!solarActive) return [];
     const groups = new Map<string, number>();
     contacts.forEach((c) => {
-      const tag = c.categoryTags?.[0] || 'Default';
-      groups.set(tag, (groups.get(tag) || 0) + 1);
+      const tag = c.categoryTags?.[0];
+      if (tag) groups.set(tag, (groups.get(tag) || 0) + 1);
     });
     return Array.from(sunPositions.entries()).map(([tag, pos]) => {
       const count = groups.get(tag) || 0;
       const size = getSunSize(count);
-      const offset = size / 2;
+      const outerBubbleSize = size + 60;
+      const offset = outerBubbleSize / 2;
       return {
         id: `sun-${tag}`,
         type: 'tagSun',
@@ -209,8 +210,8 @@ const MindMapCanvas = () => {
 
   const getNodeColor = useCallback((n: Node) => {
     const data = n.data as unknown as ContactNodeData;
-    const tag = data.categoryTags?.[0] || 'Default';
-    return (CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default).color;
+    const tag = data.categoryTags?.[0];
+    return (tag && CATEGORY_COLORS[tag])?.color || 'hsl(215 16% 45%)';
   }, []);
 
   return (

@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.ai-connections]
 verify_jwt = false
+
+[functions.ai-merge]
+verify_jwt = false
+
+[functions.ai-tag-contacts]
+verify_jwt = false
