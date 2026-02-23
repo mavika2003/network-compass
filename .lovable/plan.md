@@ -1,112 +1,88 @@
-# Solar System Layout + Subtle Edge Labels
 
-## Overview
 
-Redesign the mind map so popular tags act as **suns** (central hubs) with their contacts arranged as **planets** orbiting around them. Edge labels become nearly invisible, only revealing on hover. The AI Connect button will also use this solar layout when auto-arranging.
+# Fix Solar Layout, Add Toggle, AI Prompt Connect, and CSV Import
 
----
+## 1. Fix Solar Layout Algorithm
 
-## 1. Edge Labels: Hover-Only Visibility
+The current layout has issues:
+- The `bigRadius` calculation (`totalGroups * 150`) creates overly spread-out layouts
+- Sun node positions are offset by -45px but the orbit calculations don't account for this
+- No special handling for small group counts (1-2 groups)
 
-**File: `src/components/mindmap/MindMapCanvas.tsx**`
+**Fix in `src/utils/solarLayout.ts`:**
+- Reduce the big radius formula to be more compact: `Math.max(300, totalGroups * 120)`
+- Increase orbit radius minimum so planets don't overlap their sun: `Math.max(160, members.length * 35)`
+- Add jitter for single-member groups so they don't sit directly on the sun
 
-- Change the edge label `<div>` to have `opacity: 0` by default with a CSS transition
-- On hover, transition to `opacity: 1`
-- The edge line itself stays subtly visible (reduce stroke to ~1.5, lower the glow)
-- Delete button only appears on hover along with the label
+## 2. Solar Layout Toggle (On/Off)
 
----
+Currently pressing Solar Layout only activates it -- no way to revert.
 
-## 2. Solar System Auto-Layout
+**Changes in `src/components/mindmap/MindMapCanvas.tsx`:**
+- Store pre-solar positions in a `useRef<Map<string, {x, y}>>` before applying solar layout
+- When Solar Layout is pressed again (already active), restore the saved positions and set `solarActive = false`, removing sun nodes
+- Pass `solarActive` state to `MindMapControls` so the button label/style can toggle
 
-**New file: `src/utils/solarLayout.ts**`
+**Changes in `src/components/mindmap/MindMapControls.tsx`:**
+- Accept `solarActive` prop
+- Change the Solar Layout button to show "Reset Layout" with a different icon when solar is active
+- Clicking it calls a new `onResetLayout` callback
 
-A layout function that:
+## 3. AI Connect with Custom Prompt
 
-- Groups contacts by their **primary tag** (first tag in `categoryTags`)
-- Counts contacts per tag to determine tag popularity
-- Places each tag group as a "solar system":
-  - The **sun** position is the center of that group (tags arranged in a grid or circle pattern with generous spacing)
-  - **Planets** (contacts) are placed in a circle around their sun, evenly spaced at a radius proportional to the number of contacts
-- Contacts with no tags go into a "Default" system
-- Returns a map of `contactId -> { x, y }` positions
+Add a text input next to the AI Connect button so users can guide the AI on how to connect people.
 
-Layout math:
+**Changes in `src/components/mindmap/MindMapControls.tsx`:**
+- Add a collapsible text input (Textarea) that appears when clicking AI Connect or a dropdown arrow
+- The text input has a placeholder like "e.g. Connect people who might collaborate on startups"
+- The custom prompt is sent along with the contacts to the edge function
 
-- Tag suns are arranged in a large circle (or grid) with ~400-500px spacing between them
-- Each sun's planets orbit at radius ~120-200px depending on count
-- Planet angle = `(index / count) * 2 * PI`, evenly distributed
+**Changes in `supabase/functions/ai-connections/index.ts`:**
+- Accept an optional `userPrompt` field in the request body
+- Append the user's prompt to the system message so the AI considers it when suggesting connections
 
----
+## 4. LinkedIn CSV Import
 
-## 3. "Auto Layout" Button in MindMapControls
+Add a button in the Map page header (next to "Add Contact") to import contacts from a LinkedIn `connections.csv` file.
 
-**File: `src/components/mindmap/MindMapControls.tsx**`
+**New file: `src/components/contact/CSVImportDialog.tsx`**
+- A dialog with a file input that accepts `.csv` files
+- Parses the CSV client-side (no external library needed -- use basic string splitting)
+- Maps LinkedIn CSV columns: `First Name`, `Last Name`, `URL`, `Email Address`, `Company`, `Position`, `Connected On`
+- Shows a preview of parsed contacts with a count
+- On confirm, batch-inserts contacts into the database using `addContact` from the store
+- Maps fields: name = First + Last, email, company, jobTitle = Position, source = "import", notes = LinkedIn URL, lastContactedAt = Connected On date
 
-- Add a new button (e.g., "Solar Layout" with a sun icon) next to the AI Connect button
-- On click, it calls the solar layout function with current contacts
-- Updates each contact's `nodePositionX` / `nodePositionY` via `updateNodePosition` in the store
-- Positions are saved to the database, so they persist
-
----
-
-## 4. Tag "Sun" Nodes (Visual Anchors)
-
-**New file: `src/components/mindmap/TagSunNode.tsx**`
-
-- A new React Flow node type rendered as a glowing circle with the tag name
-- Larger than contact nodes (~90px), uses the tag's color with a radial glow
-- Non-interactive (no click-to-open drawer), just a visual anchor
-- Not saved to the database -- generated on-the-fly from tag data
-
-**File: `src/components/mindmap/MindMapCanvas.tsx**`
-
-- Register `tagSun` as a new node type
-- When solar layout is active, generate sun nodes for each tag group and include them in the nodes array
-- Sun nodes are not draggable (or optionally draggable, moving their planets with them)
-
----
-
-## 5. AI Connect Integration
-
-**File: `src/components/mindmap/MindMapControls.tsx**`
-
-- After AI Connect creates connections, automatically trigger the solar layout so the new connections are visually organized
+**Changes in `src/pages/MapPage.tsx`:**
+- Add the CSVImportDialog button next to the existing "Add Contact" button in the header
 
 ---
 
 ## Technical Details
 
-### Solar layout algorithm (`src/utils/solarLayout.ts`)
+### Solar layout fix (`src/utils/solarLayout.ts`)
+- Tighter radius constants for a more compact, visually pleasing arrangement
+- Handle edge case of 1 group (center at 0,0) and 2 groups (side by side)
 
-```text
-Input: contacts[]
-Output: { contactPositions: Map<id, {x,y}>, sunPositions: Map<tag, {x,y}> }
+### Position save/restore for toggle
+- `preLayoutPositions` ref stores `Map<string, {x, y}>` captured right before `computeSolarLayout` runs
+- On reset: iterate the map, call `updateNodePosition` for each, clear sun nodes
 
-1. Group contacts by primaryTag
-2. Sort groups by size (largest first)
-3. Arrange group centers in a circle:
-   - centerX/Y for each group = big circle radius ~300px * cos/sin(groupIndex / totalGroups * 2PI)
-4. For each group, place contacts in orbit:
-   - radius = max(120, contacts.length * 25)
-   - each contact at angle = (i / n) * 2PI
-   - x = sunX + radius * cos(angle)
-   - y = sunY + radius * sin(angle)
-```
+### CSV parsing approach
+- Read file as text using `FileReader`
+- Split by newlines, handle quoted fields (LinkedIn uses quotes for fields with commas)
+- Skip header row, map columns by index based on known LinkedIn CSV format
+- Validate: skip rows without a name
+- Batch insert using existing `addContact` store method (sequential to avoid race conditions)
 
-### Edge label hover CSS approach
+### AI prompt integration
+- The `userPrompt` string is appended to the system prompt: "Additional user instruction: {userPrompt}"
+- If empty/absent, behavior is unchanged from current implementation
 
-- Use a CSS class with `opacity: 0; transition: opacity 0.2s;`
-- On the edge label wrapper, add `:hover` -> `opacity: 1`
-- The edge line itself uses `strokeOpacity: 0.4` normally, with the full color on path hover via CSS `.react-flow__edge:hover path` selector
-
-### Files changed
-
-- **Modified**: `src/components/mindmap/MindMapCanvas.tsx` -- hover-only labels, sun node type, solar layout integration
-- **Modified**: `src/components/mindmap/MindMapControls.tsx` -- solar layout button
-- **Modified**: `src/index.css` -- edge hover styles
-- **Created**: `src/utils/solarLayout.ts` -- layout algorithm
-- **Created**: `src/components/mindmap/TagSunNode.tsx` -- visual sun node for tags
-
-IMPORTANT:-  
-Also make it working so that future tags being created are also ai scanned and can create their own sun when reaching a perticular number, 
+### Files to create/modify
+- **Modified**: `src/utils/solarLayout.ts` -- fix radius calculations
+- **Modified**: `src/components/mindmap/MindMapCanvas.tsx` -- toggle logic with position save/restore
+- **Modified**: `src/components/mindmap/MindMapControls.tsx` -- toggle UI, AI prompt textbox
+- **Modified**: `supabase/functions/ai-connections/index.ts` -- accept userPrompt
+- **Created**: `src/components/contact/CSVImportDialog.tsx` -- CSV import dialog
+- **Modified**: `src/pages/MapPage.tsx` -- add CSV import button
