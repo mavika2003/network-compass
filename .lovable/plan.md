@@ -1,121 +1,101 @@
 
 
-# AI-Powered Connection Management, Dynamic Solar Layout, and Contact Merging
+# Huge Sun Bubbles, Tag Merging, AI Auto-Tagging, and Cleanup
 
-## 1. Full AI Connection Management (Add, Remove, Modify)
+## Overview
+Six changes: (1) massively bigger sun bubbles, (2) merge duplicates for tags too, (3-4) AI auto-tagging for CSV imports and manual contact saves, (5) remove forced "mutual" connections, (6) remove "Default" tag fallback.
 
-Currently the AI can only add connections. The user wants to type natural language commands like "remove the connection between Alice and Bob" or "change Alice-Bob to mentor."
+---
+
+## 1. Huge Bubbles Around Sun Nodes
+
+**Files: `src/components/mindmap/TagSunNode.tsx`, `src/utils/solarLayout.ts`, `src/index.css`**
+
+- Increase `getSunSize` formula: `Math.min(320, 180 + Math.floor(contactCount / 2) * 30)` -- starts at 180px, grows faster, caps at 320px
+- Add a third outermost translucent bubble ring (glassmorphic) at `size + 60` pixels with a soft radial gradient fill (not just a border) and backdrop-blur effect
+- Increase glow layers to be larger (extend 40-50px beyond core)
+- Add a subtle breathing animation (scale 1.0 to 1.03) via new CSS keyframe `sun-breathe`
+- In `solarLayout.ts`, increase `bigRadius` and `orbitRadius` to accommodate larger suns: `orbitRadius = Math.max(sunSize / 2 + 120, members.length * 50)`
+
+## 2. Merge Duplicates for Tags (Not Just Contacts)
+
+**Files: `supabase/functions/ai-merge/index.ts`, `src/components/mindmap/MergeContactsDialog.tsx`, `src/stores/contactStore.ts`**
+
+Expand the AI merge system to also detect duplicate tags:
+
+- **Edge function**: Add tags list to the request body. Expand the AI prompt to also look for duplicate/similar tags (e.g., "Tech" vs "Technology", "Work" vs "Job"). Return a new `tagMerges` array alongside `merges` with `{ keepTag, mergeTag, reason }`.
+- **Store**: Add `mergeTag(keepTag: string, mergeTag: string, userId: string)` method that:
+  - Finds all contacts with `mergeTag` in their `categoryTags`
+  - Replaces `mergeTag` with `keepTag` in each contact's tags
+  - Updates the database
+- **Dialog**: Show tag merge suggestions in a separate section below contact merges. Apply tag merges when confirmed. Include in undo payload.
+
+## 3. AI Auto-Tagging for CSV Import
+
+**Files: `supabase/functions/ai-extract/index.ts` (reuse), `src/components/contact/CSVImportDialog.tsx`**
+
+- Create a new edge function `supabase/functions/ai-tag-contacts/index.ts` that accepts a batch of contacts (name, company, jobTitle, email) and existing tags, then returns suggested tags and relationship strength for each contact
+- In `CSVImportDialog.tsx`, after importing all contacts:
+  1. Collect the newly imported contacts
+  2. Call `ai-tag-contacts` with the batch (send all at once for efficiency)
+  3. Update each contact's `categoryTags` and `relationshipStrength` with AI suggestions
+  4. Show a toast: "AI tagged N contacts"
+
+## 4. AI Auto-Tagging When Manually Saving a Contact
+
+**Files: `src/components/contact/ContactForm.tsx`**
+
+- After `addContact` succeeds, if `categoryTags` is empty (user didn't pick any):
+  - Call `ai-tag-contacts` with just this one contact
+  - Update the contact's tags via `updateContact`
+- Remove the `['Default']` fallback from `handleSubmit` (line 38): instead of forcing `Default`, leave tags empty and let AI fill them
+
+## 5. New Edge Function: `ai-tag-contacts`
+
+**File: `supabase/functions/ai-tag-contacts/index.ts`** (new)
+
+- Accepts `{ contacts: [{ id, name, company, jobTitle, email, notes }], existingTags: string[] }`
+- System prompt: "Given contact details, suggest 1-3 category tags per contact from the existing tags list. Only create new tags if no existing tag fits. Also estimate relationship strength 0-100."
+- Returns `{ results: [{ id, suggestedTags: string[], relationshipStrength: number }] }`
+- Uses batch processing -- handles up to 200 contacts in a single call
+
+## 6. Remove Forced "Mutual" Connections
+
+**Files: `src/stores/contactStore.ts`, `src/components/contact/ContactForm.tsx`**
+
+- In `addContact` in the store: do NOT create any automatic connections. Currently no auto-connections are created, but the `connectionType` dialog defaults to "mutual". This is fine -- the dialog only appears when users manually drag to connect.
+- The real issue is in the `ai-connections` edge function: when no user prompt is given, the AI suggests connections with type "mutual" by default. Fix: update the AI prompt to only suggest connections when there's genuine reason (shared company, shared tags, etc.), and never default to "mutual" type -- instead pick the most appropriate type.
 
 **File: `supabase/functions/ai-connections/index.ts`**
+- Update the default system prompt: add "Do NOT use 'mutual' as a catch-all. Only suggest 'mutual' when contacts have a genuine known mutual relationship. Prefer 'colleague' for same-company, 'friend' for same social tags."
 
-Expand the AI tool schema to return three action types instead of just additions:
-- `add` -- create a new connection (current behavior)
-- `remove` -- delete an existing connection
-- `modify` -- change the relationship type of an existing connection
+## 7. Remove "Default" Tag
 
-The tool function becomes `manage_connections` with an `actions` array where each action has a `type` field ("add", "remove", "modify"). For remove/modify, the AI references existing connection pairs. The existing connections list (with IDs) is sent to the AI so it can reference them.
+**Files: `src/types/index.ts`, `src/components/contact/ContactForm.tsx`**
 
-**File: `src/components/mindmap/MindMapControls.tsx`**
-
-Update `handleAIConnect` to process all three action types:
-- `add`: call `addConnection` (existing)
-- `remove`: find matching connection ID, call `deleteConnection`
-- `modify`: call `deleteConnection` then `addConnection` with new type
-
-Update the placeholder text to reflect broader capabilities: "e.g. Remove connection between Alice and Bob, or connect all Tech people"
-
-**File: `src/stores/contactStore.ts`**
-
-Add an `updateConnection` method that updates `relationship_type` in the DB and local state, so modify doesn't require delete+add.
-
-## 2. Bigger, Dynamic Solar Layout Suns
-
-The suns should scale based on the number of contacts in each tag group, and automatically appear whenever Solar Layout is pressed (already works, but sizes should be dynamic).
-
-**File: `src/components/mindmap/TagSunNode.tsx`**
-
-Make the sun size dynamic based on `contactCount`:
-- Base size: 140px for 1-3 contacts
-- Scale up: +20px per additional 3 contacts, capped at 220px
-- The core sphere, glow rings, and rotating ring all scale proportionally
-- Larger groups get more prominent glow effects
-
-**File: `src/components/mindmap/MindMapCanvas.tsx`**
-
-Update `buildSunNodes` to pass size to the sun node and adjust position offset dynamically based on calculated size (currently hardcoded to -70).
-
-**File: `src/utils/solarLayout.ts`**
-
-Scale orbit radius more aggressively for larger groups so planets don't overlap the bigger sun.
-
-## 3. Reactive Solar Layout (Works with Add/Remove)
-
-Currently the solar layout is a one-time snapshot. If a connection is added or removed, the layout doesn't update.
-
-**File: `src/components/mindmap/MindMapCanvas.tsx`**
-
-When `solarActive` is true and contacts or connections change, automatically re-run `computeSolarLayout` and update sun positions. Add a `useEffect` that watches `contacts` and `connections` while `solarActive` is true, and re-applies the layout (without overwriting `preLayoutPositions` -- only save those on the initial toggle).
-
-## 4. AI-Powered Contact Merge with Undo
-
-Allow AI to identify duplicate contacts (e.g., "Columbia" and "Columbia University") and merge them, with an undo/redo stack.
-
-**New file: `src/components/mindmap/MergeContactsDialog.tsx`**
-
-A dialog triggered from MindMapControls with:
-- An "AI Merge" button that calls a new edge function to find duplicates
-- Shows a list of suggested merges with checkboxes (e.g., "Merge 'Columbia' into 'Columbia University'")
-- User confirms which merges to apply
-- After merging, a toast appears with an "Undo" button
-- Undo restores the deleted contact and its connections from a local cache
-
-**New file: `supabase/functions/ai-merge/index.ts`**
-
-A new edge function that:
-- Receives the full contact list
-- Uses AI to identify likely duplicates based on name similarity, company, email
-- Returns pairs with a `keepId` (the contact to keep) and `mergeId` (the contact to absorb)
-- Includes a `reason` for each suggestion
-
-**File: `src/stores/contactStore.ts`**
-
-Add a `mergeContacts` method:
-- Takes `keepId` and `mergeId`
-- Merges data: combines tags, keeps non-null fields from both (prefer keepId)
-- Reassigns all connections from mergeId to keepId
-- Deletes mergeId contact
-- Returns the "undo payload" (the deleted contact data + its connections)
-
-Add an `undoMerge` method:
-- Takes the undo payload
-- Re-creates the deleted contact
-- Restores its connections
-- Removes any duplicate connections that were reassigned
-
-**File: `src/components/mindmap/MindMapControls.tsx`**
-
-Add a "Merge Duplicates" button that opens the MergeContactsDialog.
+- Remove the `Default` entry from `CATEGORY_COLORS` -- contacts will simply have no tag color until AI assigns one
+- `ContactForm.tsx`: remove `categoryTags: form.categoryTags.length ? form.categoryTags : ['Default']` and just pass `categoryTags: form.categoryTags`
+- `CSVImportDialog.tsx`: already passes `categoryTags: []` -- no change needed
+- All components that reference `Default` as fallback (ContactNode, TagSunNode, MindMapCanvas, solarLayout) will use a neutral gray fallback when tag is not in `CATEGORY_COLORS`
 
 ---
 
 ## Technical Details
 
-### AI connection management tool schema
+### ai-tag-contacts edge function schema
 ```json
 {
-  "name": "manage_connections",
+  "name": "tag_contacts",
   "parameters": {
     "properties": {
-      "actions": {
+      "results": {
         "type": "array",
         "items": {
           "type": "object",
           "properties": {
-            "type": { "type": "string", "enum": ["add", "remove", "modify"] },
-            "contactAId": { "type": "string" },
-            "contactBId": { "type": "string" },
-            "relationshipType": { "type": "string", "enum": ["friend", "colleague", "mutual", "mentor"] },
-            "reason": { "type": "string" }
+            "id": { "type": "string" },
+            "suggestedTags": { "type": "array", "items": { "type": "string" } },
+            "relationshipStrength": { "type": "number" }
           }
         }
       }
@@ -124,32 +104,41 @@ Add a "Merge Duplicates" button that opens the MergeContactsDialog.
 }
 ```
 
-### Existing connections sent to AI (for remove/modify)
-```json
-[
-  { "id": "...", "contactAName": "Alice", "contactBName": "Bob", "type": "friend" }
-]
-```
-This lets the AI match by name when the user says "remove connection between Alice and Bob."
-
-### Dynamic sun sizing formula
+### Tag merge store method
 ```text
-size = Math.min(220, 140 + Math.floor(contactCount / 3) * 20)
+mergeTag(keepTag, mergeTag, userId):
+  1. Find all contacts where categoryTags includes mergeTag
+  2. For each: replace mergeTag with keepTag (deduplicate)
+  3. Update each contact in DB
+  4. Return list of affected contact IDs for undo
 ```
 
-### Merge undo stack
-- Store last N merge operations in component state (not persisted)
-- Each entry: `{ deletedContact: Contact, deletedConnections: ConnectionData[], reassignedConnections: { id, oldContactId }[] }`
-- Toast with "Undo" button stays for 10 seconds
-- Clicking Undo calls `undoMerge` which re-inserts the contact and restores connections
+### Sun size formula change
+```text
+OLD: Math.min(220, 140 + Math.floor(contactCount / 3) * 20)
+NEW: Math.min(320, 180 + Math.floor(contactCount / 2) * 30)
+```
+
+### CSV import flow with AI tagging
+```text
+1. Parse CSV -> show preview
+2. User clicks Import
+3. Insert contacts with empty tags
+4. Batch call ai-tag-contacts with all imported contacts + user's existing tags
+5. Update each contact with AI-suggested tags
+6. Toast: "Imported N contacts, AI tagged N"
+```
 
 ### Files to create/modify
-- **Modified**: `supabase/functions/ai-connections/index.ts` -- full CRUD actions
-- **Created**: `supabase/functions/ai-merge/index.ts` -- duplicate detection
-- **Created**: `src/components/mindmap/MergeContactsDialog.tsx` -- merge UI with undo
-- **Modified**: `src/components/mindmap/MindMapControls.tsx` -- merge button, updated prompt placeholder
-- **Modified**: `src/components/mindmap/MindMapCanvas.tsx` -- reactive solar layout
-- **Modified**: `src/components/mindmap/TagSunNode.tsx` -- dynamic sizing
-- **Modified**: `src/utils/solarLayout.ts` -- scaled orbit radius
-- **Modified**: `src/stores/contactStore.ts` -- mergeContacts, undoMerge, updateConnection
+- **Created**: `supabase/functions/ai-tag-contacts/index.ts` -- batch AI tagging
+- **Modified**: `src/components/mindmap/TagSunNode.tsx` -- bigger bubbles (320px max)
+- **Modified**: `src/utils/solarLayout.ts` -- larger orbit radii
+- **Modified**: `src/index.css` -- breathing animation keyframe
+- **Modified**: `supabase/functions/ai-merge/index.ts` -- tag deduplication
+- **Modified**: `src/components/mindmap/MergeContactsDialog.tsx` -- tag merge UI
+- **Modified**: `src/stores/contactStore.ts` -- mergeTag method
+- **Modified**: `src/components/contact/CSVImportDialog.tsx` -- AI tagging after import
+- **Modified**: `src/components/contact/ContactForm.tsx` -- AI tagging on save, remove Default fallback
+- **Modified**: `supabase/functions/ai-connections/index.ts` -- stop forcing mutual
+- **Modified**: `src/types/index.ts` -- remove Default from CATEGORY_COLORS
 
