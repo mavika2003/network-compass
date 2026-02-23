@@ -91,8 +91,8 @@ const SearchPage = () => {
 
         <div className="grid gap-2">
           {matchedContacts.map((contact) => {
-            const primaryTag = contact.categoryTags?.[0] || 'Default';
-            const cat = CATEGORY_COLORS[primaryTag] || CATEGORY_COLORS.Default;
+            const primaryTag = contact.categoryTags?.[0];
+            const cat = (primaryTag && CATEGORY_COLORS[primaryTag]) || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
             return (
               <button
                 key={contact.id}

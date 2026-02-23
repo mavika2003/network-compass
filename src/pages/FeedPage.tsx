@@ -185,7 +185,7 @@ const FeedPage = () => {
               {post.visibilityTags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {post.visibilityTags.map((tag) => {
-                    const cat = CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default;
+                    const cat = CATEGORY_COLORS[tag] || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
                     return (
                       <span
                         key={tag}

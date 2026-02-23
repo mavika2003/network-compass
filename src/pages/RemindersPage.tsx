@@ -112,7 +112,7 @@ const RemindersPage = () => {
           {suggestions.map((suggestion, i) => {
             const urgency = urgencyStyles[suggestion.urgency] || urgencyStyles.medium;
             const tag = getContactTag(suggestion.contactId);
-            const cat = CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default;
+            const cat = CATEGORY_COLORS[tag] || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
             const actionIcon = actionIcons[suggestion.suggestedAction] || actionIcons.message;
 
             return (
