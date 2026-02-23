@@ -196,14 +196,23 @@ const MindMapControls = ({ onSolarLayout, onResetLayout, solarActive }: MindMapC
       </div>
 
       {showPrompt && (
-        <div className="max-w-md">
+        <div className="max-w-md relative">
           <Textarea
             value={userPrompt}
             onChange={(e) => setUserPrompt(e.target.value)}
-            placeholder="e.g. Remove connection between Alice and Bob, connect all Tech people, change John-Jane to mentor"
-            className="bg-card/90 backdrop-blur-sm border-border text-foreground text-xs min-h-[60px] resize-none"
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAIConnect(); } }}
+            placeholder="e.g. Remove connection between Alice and Bob, connect all Tech people..."
+            className="bg-card/90 backdrop-blur-sm border-border text-foreground text-xs min-h-[60px] resize-none pr-10"
             rows={2}
           />
+          <Button
+            size="icon"
+            onClick={handleAIConnect}
+            disabled={aiLoading || !userPrompt.trim()}
+            className="absolute right-1.5 bottom-1.5 h-7 w-7 rounded-md bg-primary hover:bg-primary/90"
+          >
+            {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+          </Button>
         </div>
       )}
 
