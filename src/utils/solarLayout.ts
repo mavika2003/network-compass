@@ -1,3 +1,5 @@
+import { getSunSize } from '@/components/mindmap/TagSunNode';
+
 interface ContactInput {
   id: string;
   categoryTags: string[];
@@ -28,8 +30,9 @@ export function computeSolarLayout(contacts: ContactInput[]): SolarLayoutResult 
   const sortedGroups = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length);
   const totalGroups = sortedGroups.length;
 
-  // Tighter radius for compact layout
-  const bigRadius = totalGroups <= 1 ? 0 : totalGroups === 2 ? 300 : Math.max(300, totalGroups * 120);
+  // Scale big radius based on group count and largest sun size
+  const maxSunSize = sortedGroups.length > 0 ? getSunSize(sortedGroups[0][1].length) : 140;
+  const bigRadius = totalGroups <= 1 ? 0 : totalGroups === 2 ? 350 : Math.max(350, totalGroups * 140 + maxSunSize);
 
   sortedGroups.forEach(([tag, members], groupIdx) => {
     let sunX: number, sunY: number;
@@ -48,8 +51,9 @@ export function computeSolarLayout(contacts: ContactInput[]): SolarLayoutResult 
 
     sunPositions.set(tag, { x: sunX, y: sunY });
 
-    // Orbit radius scales with member count, with a healthy minimum
-    const orbitRadius = Math.max(160, members.length * 35);
+    // Orbit radius scales with member count + sun size so planets don't overlap the sun
+    const sunSize = getSunSize(members.length);
+    const orbitRadius = Math.max(sunSize / 2 + 80, members.length * 40);
     members.forEach((contact, i) => {
       const planetAngle = (i / members.length) * 2 * Math.PI - Math.PI / 2;
       contactPositions.set(contact.id, {

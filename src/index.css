@@ -154,3 +154,12 @@
 .sun-rotate-ring {
   animation: sun-rotate 20s linear infinite;
 }
+
+@keyframes sun-rotate-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+.sun-rotate-ring-reverse {
+  animation: sun-rotate-reverse 30s linear infinite;
+}
