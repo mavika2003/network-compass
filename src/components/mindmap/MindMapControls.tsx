@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useContactStore } from '@/stores/contactStore';
 import { useAuth } from '@/hooks/useAuth';
 import { CATEGORY_COLORS } from '@/types';
-import { X, Sparkles, Loader2, Sun, RotateCcw, ChevronDown } from 'lucide-react';
+import { X, Sparkles, Loader2, Sun, RotateCcw, ChevronDown, Merge } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import MergeContactsDialog from './MergeContactsDialog';
 
 interface MindMapControlsProps {
   onSolarLayout?: () => void;
@@ -21,16 +22,19 @@ const MindMapControls = ({ onSolarLayout, onResetLayout, solarActive }: MindMapC
   const contacts = useContactStore((s) => s.contacts);
   const connections = useContactStore((s) => s.connections);
   const addConnection = useContactStore((s) => s.addConnection);
+  const deleteConnection = useContactStore((s) => s.deleteConnection);
+  const updateConnectionType = useContactStore((s) => s.updateConnectionType);
   const { user } = useAuth();
   const [aiLoading, setAiLoading] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [userPrompt, setUserPrompt] = useState('');
+  const [mergeOpen, setMergeOpen] = useState(false);
 
   const allTags = Array.from(new Set(contacts.flatMap((c) => c.categoryTags))).sort();
 
   const handleAIConnect = async () => {
     if (!user || contacts.length < 2) {
-      toast({ title: 'Need at least 2 contacts to auto-connect', variant: 'destructive' });
+      toast({ title: 'Need at least 2 contacts to manage connections', variant: 'destructive' });
       return;
     }
 
@@ -42,29 +46,59 @@ const MindMapControls = ({ onSolarLayout, onResetLayout, solarActive }: MindMapC
 
       if (error) throw error;
 
-      const suggested = data?.connections || [];
-      if (suggested.length === 0) {
-        toast({ title: 'No new connections suggested', description: 'AI found no missing relationships.' });
+      const actions = data?.actions || [];
+      if (actions.length === 0) {
+        toast({ title: 'No actions suggested', description: 'AI found nothing to change.' });
         setAiLoading(false);
         return;
       }
 
-      let added = 0;
-      for (const conn of suggested) {
-        const exists = connections.some(
-          (c) =>
-            (c.contactAId === conn.contactAId && c.contactBId === conn.contactBId) ||
-            (c.contactAId === conn.contactBId && c.contactBId === conn.contactAId)
-        );
-        if (!exists) {
-          await addConnection(user.id, conn.contactAId, conn.contactBId, conn.relationshipType);
-          added++;
+      let added = 0, removed = 0, modified = 0;
+      const reasons: string[] = [];
+
+      for (const action of actions) {
+        if (action.type === 'add') {
+          const exists = connections.some(
+            (c) =>
+              (c.contactAId === action.contactAId && c.contactBId === action.contactBId) ||
+              (c.contactAId === action.contactBId && c.contactBId === action.contactAId)
+          );
+          if (!exists) {
+            await addConnection(user.id, action.contactAId, action.contactBId, action.relationshipType || 'mutual');
+            added++;
+          }
+        } else if (action.type === 'remove') {
+          const conn = connections.find(
+            (c) =>
+              (c.contactAId === action.contactAId && c.contactBId === action.contactBId) ||
+              (c.contactAId === action.contactBId && c.contactBId === action.contactAId)
+          );
+          if (conn) {
+            await deleteConnection(conn.id);
+            removed++;
+          }
+        } else if (action.type === 'modify') {
+          const conn = connections.find(
+            (c) =>
+              (c.contactAId === action.contactAId && c.contactBId === action.contactBId) ||
+              (c.contactAId === action.contactBId && c.contactBId === action.contactAId)
+          );
+          if (conn && action.relationshipType) {
+            await updateConnectionType(conn.id, action.relationshipType);
+            modified++;
+          }
         }
+        if (action.reason) reasons.push(action.reason);
       }
 
+      const parts = [];
+      if (added) parts.push(`${added} added`);
+      if (removed) parts.push(`${removed} removed`);
+      if (modified) parts.push(`${modified} modified`);
+
       toast({
-        title: `${added} connection${added !== 1 ? 's' : ''} created`,
-        description: suggested.map((s: any) => s.reason).join(' • '),
+        title: `Connections: ${parts.join(', ')}`,
+        description: reasons.slice(0, 3).join(' • '),
       });
 
       onSolarLayout?.();
@@ -122,6 +156,16 @@ const MindMapControls = ({ onSolarLayout, onResetLayout, solarActive }: MindMapC
           </Button>
         )}
 
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setMergeOpen(true)}
+          className="gap-1.5 border-border bg-card/80 text-foreground hover:bg-secondary"
+        >
+          <Merge className="w-3.5 h-3.5" />
+          Merge Duplicates
+        </Button>
+
         {allTags.map((tag) => {
           const active = activeFilters.includes(tag);
           const cat = CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default;
@@ -156,12 +200,14 @@ const MindMapControls = ({ onSolarLayout, onResetLayout, solarActive }: MindMapC
           <Textarea
             value={userPrompt}
             onChange={(e) => setUserPrompt(e.target.value)}
-            placeholder="e.g. Connect people who might collaborate on startups"
+            placeholder="e.g. Remove connection between Alice and Bob, connect all Tech people, change John-Jane to mentor"
             className="bg-card/90 backdrop-blur-sm border-border text-foreground text-xs min-h-[60px] resize-none"
             rows={2}
           />
         </div>
       )}
+
+      <MergeContactsDialog open={mergeOpen} onOpenChange={setMergeOpen} />
     </div>
   );
 };

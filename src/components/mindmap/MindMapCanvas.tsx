@@ -17,7 +17,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ContactNode from './ContactNode';
-import TagSunNode from './TagSunNode';
+import TagSunNode, { getSunSize } from './TagSunNode';
 import type { TagSunNodeData } from './TagSunNode';
 import ConnectionTypeDialog from './ConnectionTypeDialog';
 import MindMapControls from './MindMapControls';
@@ -91,12 +91,14 @@ const MindMapCanvas = () => {
   const preLayoutPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   const applySolarLayout = useCallback(() => {
-    // Save current positions before applying
-    const saved = new Map<string, { x: number; y: number }>();
-    contacts.forEach((c) => {
-      saved.set(c.id, { x: c.nodePositionX ?? 0, y: c.nodePositionY ?? 0 });
-    });
-    preLayoutPositions.current = saved;
+    // Save current positions before applying (only on first toggle)
+    if (!solarActive) {
+      const saved = new Map<string, { x: number; y: number }>();
+      contacts.forEach((c) => {
+        saved.set(c.id, { x: c.nodePositionX ?? 0, y: c.nodePositionY ?? 0 });
+      });
+      preLayoutPositions.current = saved;
+    }
 
     const result = computeSolarLayout(contacts);
     result.contactPositions.forEach((pos, id) => {
@@ -104,7 +106,17 @@ const MindMapCanvas = () => {
     });
     setSunPositions(result.sunPositions);
     setSolarActive(true);
-  }, [contacts, updateNodePosition]);
+  }, [contacts, updateNodePosition, solarActive]);
+
+  // Re-apply solar layout when contacts change while active
+  useEffect(() => {
+    if (!solarActive) return;
+    const result = computeSolarLayout(contacts);
+    result.contactPositions.forEach((pos, id) => {
+      updateNodePosition(id, pos.x, pos.y);
+    });
+    setSunPositions(result.sunPositions);
+  }, [contacts.length]); // Only re-layout when contacts are added/removed
 
   const resetLayout = useCallback(() => {
     preLayoutPositions.current.forEach((pos, id) => {
@@ -121,14 +133,19 @@ const MindMapCanvas = () => {
       const tag = c.categoryTags?.[0] || 'Default';
       groups.set(tag, (groups.get(tag) || 0) + 1);
     });
-    return Array.from(sunPositions.entries()).map(([tag, pos]) => ({
-      id: `sun-${tag}`,
-      type: 'tagSun',
-      position: { x: pos.x - 70, y: pos.y - 70 },
-      draggable: false,
-      selectable: false,
-      data: { tag, contactCount: groups.get(tag) || 0 } satisfies TagSunNodeData,
-    }));
+    return Array.from(sunPositions.entries()).map(([tag, pos]) => {
+      const count = groups.get(tag) || 0;
+      const size = getSunSize(count);
+      const offset = size / 2;
+      return {
+        id: `sun-${tag}`,
+        type: 'tagSun',
+        position: { x: pos.x - offset, y: pos.y - offset },
+        draggable: false,
+        selectable: false,
+        data: { tag, contactCount: count, size } satisfies TagSunNodeData,
+      };
+    });
   }, [solarActive, sunPositions, contacts]);
 
   const buildNodes = useCallback(

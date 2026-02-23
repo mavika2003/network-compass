@@ -30,6 +30,12 @@ interface ConnectionData {
   relationshipType: string;
 }
 
+interface MergeUndoPayload {
+  deletedContact: Contact;
+  deletedConnections: ConnectionData[];
+  reassignedConnections: { id: string; oldContactId: string; newContactId: string }[];
+}
+
 interface ContactStore {
   contacts: Contact[];
   connections: ConnectionData[];
@@ -46,10 +52,13 @@ interface ContactStore {
   setDrawerOpen: (open: boolean) => void;
   toggleFilter: (tag: string) => void;
   clearFilters: () => void;
-  updateNodePosition: (id: string, x: number, y: number) => void;
+  updateNodePosition: (id: string, x: number, y: number) => Promise<void>;
   setPendingConnection: (conn: { source: string; target: string } | null) => void;
   addConnection: (userId: string, contactAId: string, contactBId: string, relationshipType: string) => Promise<void>;
   deleteConnection: (connectionId: string) => Promise<void>;
+  updateConnectionType: (connectionId: string, relationshipType: string) => Promise<void>;
+  mergeContacts: (keepId: string, mergeId: string, userId: string) => Promise<MergeUndoPayload>;
+  undoMerge: (payload: MergeUndoPayload, userId: string) => Promise<void>;
 }
 
 const mapRow = (row: any): Contact => ({
@@ -199,5 +208,145 @@ export const useContactStore = create<ContactStore>((set, get) => ({
     set((state) => ({
       connections: state.connections.filter((c) => c.id !== connectionId),
     }));
+  },
+
+  updateConnectionType: async (connectionId, relationshipType) => {
+    await supabase.from('connections').update({ relationship_type: relationshipType } as any).eq('id', connectionId);
+    set((state) => ({
+      connections: state.connections.map((c) =>
+        c.id === connectionId ? { ...c, relationshipType } : c
+      ),
+    }));
+  },
+
+  mergeContacts: async (keepId, mergeId, userId) => {
+    const { contacts, connections } = get();
+    const keepContact = contacts.find((c) => c.id === keepId)!;
+    const mergeContact = contacts.find((c) => c.id === mergeId)!;
+
+    // Combine tags
+    const mergedTags = Array.from(new Set([...keepContact.categoryTags, ...mergeContact.categoryTags]));
+
+    // Merge fields: prefer keepContact, fill nulls from mergeContact
+    const mergedUpdates: Partial<Contact> = {
+      categoryTags: mergedTags,
+      company: keepContact.company || mergeContact.company,
+      jobTitle: keepContact.jobTitle || mergeContact.jobTitle,
+      location: keepContact.location || mergeContact.location,
+      email: keepContact.email || mergeContact.email,
+      phone: keepContact.phone || mergeContact.phone,
+      notes: [keepContact.notes, mergeContact.notes].filter(Boolean).join('\n') || null,
+      description: keepContact.description || mergeContact.description,
+    };
+
+    // Find connections involving the merged contact
+    const mergeConnections = connections.filter(
+      (c) => c.contactAId === mergeId || c.contactBId === mergeId
+    );
+
+    // Save undo payload before changes
+    const undoPayload: MergeUndoPayload = {
+      deletedContact: mergeContact,
+      deletedConnections: mergeConnections,
+      reassignedConnections: [],
+    };
+
+    // Reassign connections from mergeId to keepId
+    for (const conn of mergeConnections) {
+      const otherContactId = conn.contactAId === mergeId ? conn.contactBId : conn.contactAId;
+      // Check if keepContact already has a connection to this other contact
+      const alreadyExists = connections.some(
+        (c) =>
+          c.id !== conn.id &&
+          ((c.contactAId === keepId && c.contactBId === otherContactId) ||
+           (c.contactAId === otherContactId && c.contactBId === keepId))
+      );
+
+      if (alreadyExists || otherContactId === keepId) {
+        // Delete duplicate connection
+        await supabase.from('connections').delete().eq('id', conn.id);
+      } else {
+        // Reassign to keepId
+        const updateField = conn.contactAId === mergeId ? 'contact_a_id' : 'contact_b_id';
+        await supabase.from('connections').update({ [updateField]: keepId } as any).eq('id', conn.id);
+        undoPayload.reassignedConnections.push({
+          id: conn.id,
+          oldContactId: mergeId,
+          newContactId: keepId,
+        });
+      }
+    }
+
+    // Update keepContact with merged data
+    await get().updateContact(keepId, mergedUpdates);
+
+    // Delete mergeContact
+    await supabase.from('contacts').delete().eq('id', mergeId);
+    set((state) => ({
+      contacts: state.contacts.filter((c) => c.id !== mergeId),
+      connections: state.connections
+        .filter((c) => !(c.contactAId === mergeId || c.contactBId === mergeId) || undoPayload.reassignedConnections.some((r) => r.id === c.id))
+        .map((c) => {
+          const reassigned = undoPayload.reassignedConnections.find((r) => r.id === c.id);
+          if (reassigned) {
+            return c.contactAId === mergeId
+              ? { ...c, contactAId: keepId }
+              : { ...c, contactBId: keepId };
+          }
+          return c;
+        }),
+    }));
+
+    return undoPayload;
+  },
+
+  undoMerge: async (payload, userId) => {
+    // Re-create deleted contact
+    const c = payload.deletedContact;
+    const { data } = await supabase.from('contacts').insert({
+      id: c.id,
+      user_id: userId,
+      name: c.name,
+      description: c.description || null,
+      company: c.company || null,
+      job_title: c.jobTitle || null,
+      location: c.location || null,
+      email: c.email || null,
+      phone: c.phone || null,
+      avatar_url: c.avatarUrl || null,
+      gender: c.gender || null,
+      notes: c.notes || null,
+      source: c.source || 'manual',
+      category_tags: c.categoryTags || [],
+      relationship_strength: c.relationshipStrength ?? 50,
+      node_position_x: c.nodePositionX,
+      node_position_y: c.nodePositionY,
+    } as any).select().single();
+
+    if (data) {
+      set((state) => ({ contacts: [...state.contacts, mapRow(data)] }));
+    }
+
+    // Restore reassigned connections back to original
+    for (const r of payload.reassignedConnections) {
+      const field = r.oldContactId === payload.deletedContact.id ? 'contact_a_id' : 'contact_b_id';
+      // Check which field was changed
+      await supabase.from('connections').update({ [field]: r.oldContactId } as any).eq('id', r.id);
+    }
+
+    // Re-create deleted connections (those that were removed as duplicates)
+    const reassignedIds = new Set(payload.reassignedConnections.map((r) => r.id));
+    const toRecreate = payload.deletedConnections.filter((c) => !reassignedIds.has(c.id));
+    for (const conn of toRecreate) {
+      await supabase.from('connections').insert({
+        user_id: userId,
+        contact_a_id: conn.contactAId,
+        contact_b_id: conn.contactBId,
+        relationship_type: conn.relationshipType,
+      }).select().single();
+    }
+
+    // Refetch to get clean state
+    await get().fetchContacts(userId);
   },
 }));
