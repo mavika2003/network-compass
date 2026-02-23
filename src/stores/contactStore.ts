@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
-import { CATEGORY_COLORS } from '@/types';
 
 interface Contact {
   id: string;
@@ -45,7 +44,7 @@ interface ContactStore {
   activeFilters: string[];
   loading: boolean;
   fetchContacts: (userId: string) => Promise<void>;
-  addContact: (contact: Omit<Contact, 'id' | 'createdAt'>, userId: string) => Promise<void>;
+  addContact: (contact: Omit<Contact, 'id' | 'createdAt'>, userId: string) => Promise<string | null>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<void>;
   deleteContact: (id: string) => Promise<void>;
   selectContact: (id: string | null) => void;
@@ -59,6 +58,7 @@ interface ContactStore {
   updateConnectionType: (connectionId: string, relationshipType: string) => Promise<void>;
   mergeContacts: (keepId: string, mergeId: string, userId: string) => Promise<MergeUndoPayload>;
   undoMerge: (payload: MergeUndoPayload, userId: string) => Promise<void>;
+  mergeTag: (keepTag: string, mergeTag: string, userId: string) => Promise<string[]>;
 }
 
 const mapRow = (row: any): Contact => ({
@@ -104,7 +104,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
         id: c.id,
         contactAId: c.contact_a_id,
         contactBId: c.contact_b_id,
-        relationshipType: c.relationship_type || 'mutual',
+        relationshipType: c.relationship_type || 'colleague',
       })),
       loading: false,
     });
@@ -132,7 +132,9 @@ export const useContactStore = create<ContactStore>((set, get) => ({
 
     if (data) {
       set((state) => ({ contacts: [...state.contacts, mapRow(data)] }));
+      return data.id;
     }
+    return null;
   },
 
   updateContact: async (id, updates) => {
@@ -197,7 +199,7 @@ export const useContactStore = create<ContactStore>((set, get) => ({
           id: data.id,
           contactAId: data.contact_a_id,
           contactBId: data.contact_b_id,
-          relationshipType: data.relationship_type || 'mutual',
+          relationshipType: data.relationship_type || 'colleague',
         }],
       }));
     }
@@ -224,10 +226,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
     const keepContact = contacts.find((c) => c.id === keepId)!;
     const mergeContact = contacts.find((c) => c.id === mergeId)!;
 
-    // Combine tags
     const mergedTags = Array.from(new Set([...keepContact.categoryTags, ...mergeContact.categoryTags]));
 
-    // Merge fields: prefer keepContact, fill nulls from mergeContact
     const mergedUpdates: Partial<Contact> = {
       categoryTags: mergedTags,
       company: keepContact.company || mergeContact.company,
@@ -239,22 +239,18 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       description: keepContact.description || mergeContact.description,
     };
 
-    // Find connections involving the merged contact
     const mergeConnections = connections.filter(
       (c) => c.contactAId === mergeId || c.contactBId === mergeId
     );
 
-    // Save undo payload before changes
     const undoPayload: MergeUndoPayload = {
       deletedContact: mergeContact,
       deletedConnections: mergeConnections,
       reassignedConnections: [],
     };
 
-    // Reassign connections from mergeId to keepId
     for (const conn of mergeConnections) {
       const otherContactId = conn.contactAId === mergeId ? conn.contactBId : conn.contactAId;
-      // Check if keepContact already has a connection to this other contact
       const alreadyExists = connections.some(
         (c) =>
           c.id !== conn.id &&
@@ -263,10 +259,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       );
 
       if (alreadyExists || otherContactId === keepId) {
-        // Delete duplicate connection
         await supabase.from('connections').delete().eq('id', conn.id);
       } else {
-        // Reassign to keepId
         const updateField = conn.contactAId === mergeId ? 'contact_a_id' : 'contact_b_id';
         await supabase.from('connections').update({ [updateField]: keepId } as any).eq('id', conn.id);
         undoPayload.reassignedConnections.push({
@@ -277,10 +271,8 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       }
     }
 
-    // Update keepContact with merged data
     await get().updateContact(keepId, mergedUpdates);
 
-    // Delete mergeContact
     await supabase.from('contacts').delete().eq('id', mergeId);
     set((state) => ({
       contacts: state.contacts.filter((c) => c.id !== mergeId),
@@ -301,7 +293,6 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   },
 
   undoMerge: async (payload, userId) => {
-    // Re-create deleted contact
     const c = payload.deletedContact;
     const { data } = await supabase.from('contacts').insert({
       id: c.id,
@@ -327,14 +318,11 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       set((state) => ({ contacts: [...state.contacts, mapRow(data)] }));
     }
 
-    // Restore reassigned connections back to original
     for (const r of payload.reassignedConnections) {
       const field = r.oldContactId === payload.deletedContact.id ? 'contact_a_id' : 'contact_b_id';
-      // Check which field was changed
       await supabase.from('connections').update({ [field]: r.oldContactId } as any).eq('id', r.id);
     }
 
-    // Re-create deleted connections (those that were removed as duplicates)
     const reassignedIds = new Set(payload.reassignedConnections.map((r) => r.id));
     const toRecreate = payload.deletedConnections.filter((c) => !reassignedIds.has(c.id));
     for (const conn of toRecreate) {
@@ -346,7 +334,23 @@ export const useContactStore = create<ContactStore>((set, get) => ({
       }).select().single();
     }
 
-    // Refetch to get clean state
     await get().fetchContacts(userId);
+  },
+
+  mergeTag: async (keepTag: string, mergeTag: string, userId: string) => {
+    const { contacts } = get();
+    const affectedIds: string[] = [];
+
+    for (const contact of contacts) {
+      if (contact.categoryTags.includes(mergeTag)) {
+        const newTags = Array.from(new Set(
+          contact.categoryTags.map((t) => t === mergeTag ? keepTag : t)
+        ));
+        await get().updateContact(contact.id, { categoryTags: newTags });
+        affectedIds.push(contact.id);
+      }
+    }
+
+    return affectedIds;
   },
 }));

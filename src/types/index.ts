@@ -70,5 +70,4 @@ export const CATEGORY_COLORS: Record<string, CategoryColor> = {
   Community: { name: 'Community', color: 'hsl(160 60% 45%)', glow: 'var(--glow-green)' },
   Neighbors: { name: 'Neighbors', color: 'hsl(45 80% 50%)', glow: 'var(--glow-amber)' },
   School: { name: 'School', color: 'hsl(200 75% 55%)', glow: 'var(--glow-blue)' },
-  Default: { name: 'Default', color: 'hsl(239 84% 67%)', glow: 'var(--glow-primary)' },
 };
