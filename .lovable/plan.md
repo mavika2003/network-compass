@@ -1,88 +1,81 @@
 
 
-# Fix Solar Layout, Add Toggle, AI Prompt Connect, and CSV Import
+# Bigger Sun Nodes, Smarter AI Connect, and Persistent Positions
 
-## 1. Fix Solar Layout Algorithm
+## 1. Bigger, More Visually Interesting Sun Nodes
 
-The current layout has issues:
-- The `bigRadius` calculation (`totalGroups * 150`) creates overly spread-out layouts
-- Sun node positions are offset by -45px but the orbit calculations don't account for this
-- No special handling for small group counts (1-2 groups)
+**File: `src/components/mindmap/TagSunNode.tsx`**
 
-**Fix in `src/utils/solarLayout.ts`:**
-- Reduce the big radius formula to be more compact: `Math.max(300, totalGroups * 120)`
-- Increase orbit radius minimum so planets don't overlap their sun: `Math.max(160, members.length * 35)`
-- Add jitter for single-member groups so they don't sit directly on the sun
+Current sun nodes are 90px with just text -- too small and plain.
 
-## 2. Solar Layout Toggle (On/Off)
+Changes:
+- Increase size to **140px** outer / **110px** core
+- Add multiple animated glow rings for a real "sun" effect (2-3 concentric pulsing rings at different speeds)
+- Add an emoji or icon based on tag name for visual distinction (e.g., a small icon inside)
+- Larger, bolder text (14px tag name, 11px count with "contacts" label)
+- Stronger box-shadow and radial gradient layers for depth
+- Add a subtle rotating ring animation using CSS keyframes
 
-Currently pressing Solar Layout only activates it -- no way to revert.
+**File: `src/index.css`** -- add `@keyframes sun-rotate` for a slow-spinning outer ring effect
 
-**Changes in `src/components/mindmap/MindMapCanvas.tsx`:**
-- Store pre-solar positions in a `useRef<Map<string, {x, y}>>` before applying solar layout
-- When Solar Layout is pressed again (already active), restore the saved positions and set `solarActive = false`, removing sun nodes
-- Pass `solarActive` state to `MindMapControls` so the button label/style can toggle
+**File: `src/components/mindmap/MindMapCanvas.tsx`** -- update sun node position offset from `-45` to `-70` to account for larger size
 
-**Changes in `src/components/mindmap/MindMapControls.tsx`:**
-- Accept `solarActive` prop
-- Change the Solar Layout button to show "Reset Layout" with a different icon when solar is active
-- Clicking it calls a new `onResetLayout` callback
+## 2. AI Connect: Prompt-Only vs Full Auto
 
-## 3. AI Connect with Custom Prompt
+**File: `supabase/functions/ai-connections/index.ts`**
 
-Add a text input next to the AI Connect button so users can guide the AI on how to connect people.
+When the user provides a prompt, the AI should ONLY create connections matching that specific instruction -- not general ones.
 
-**Changes in `src/components/mindmap/MindMapControls.tsx`:**
-- Add a collapsible text input (Textarea) that appears when clicking AI Connect or a dropdown arrow
-- The text input has a placeholder like "e.g. Connect people who might collaborate on startups"
-- The custom prompt is sent along with the contacts to the edge function
+Changes to the system prompt logic:
+- **If `userPrompt` is provided**: Replace the default system prompt with a focused one: "ONLY suggest connections that match this specific criteria: {userPrompt}. Do NOT suggest general connections."
+- **If `userPrompt` is empty/absent**: Keep the current behavior -- full AI analysis suggesting up to 10 connections based on tags, companies, and roles
 
-**Changes in `supabase/functions/ai-connections/index.ts`:**
-- Accept an optional `userPrompt` field in the request body
-- Append the user's prompt to the system message so the AI considers it when suggesting connections
+## 3. Persistent Contact Positions (Survive Reload)
 
-## 4. LinkedIn CSV Import
+The current issue: `updateNodePosition` in the store fires the database update without `await`, so it can fail silently. Also, new contacts use `Math.random()` as fallback in `buildNodes`, which generates different positions each render.
 
-Add a button in the Map page header (next to "Add Contact") to import contacts from a LinkedIn `connections.csv` file.
+**File: `src/stores/contactStore.ts`**
 
-**New file: `src/components/contact/CSVImportDialog.tsx`**
-- A dialog with a file input that accepts `.csv` files
-- Parses the CSV client-side (no external library needed -- use basic string splitting)
-- Maps LinkedIn CSV columns: `First Name`, `Last Name`, `URL`, `Email Address`, `Company`, `Position`, `Connected On`
-- Shows a preview of parsed contacts with a count
-- On confirm, batch-inserts contacts into the database using `addContact` from the store
-- Maps fields: name = First + Last, email, company, jobTitle = Position, source = "import", notes = LinkedIn URL, lastContactedAt = Connected On date
+Changes:
+- Make the Supabase update in `updateNodePosition` use `await` (convert to async) so position saves are reliable
+- Remove the `Math.random()` fallback in the store -- positions should only be set once during `addContact`
 
-**Changes in `src/pages/MapPage.tsx`:**
-- Add the CSVImportDialog button next to the existing "Add Contact" button in the header
+**File: `src/components/mindmap/MindMapCanvas.tsx`**
+
+Changes:
+- In `buildNodes`, replace `Math.random()` fallback with a deterministic fallback based on contact index (e.g., grid layout: `index * 150` for x, row-based for y) so contacts without saved positions still get consistent placement
+- This ensures that even if a contact somehow has null positions, they won't jump around on reload
 
 ---
 
 ## Technical Details
 
-### Solar layout fix (`src/utils/solarLayout.ts`)
-- Tighter radius constants for a more compact, visually pleasing arrangement
-- Handle edge case of 1 group (center at 0,0) and 2 groups (side by side)
+### Sun node visual design
+- Outer rotating ring: 140px, border with dashed stroke, `animation: sun-rotate 20s linear infinite`
+- Middle glow: 130px, radial gradient with tag color at 30% opacity, `animate-pulse` at different duration
+- Core sphere: 110px, multi-stop radial gradient for 3D depth effect (highlight at 30% 30%, tag color, darker shade)
+- Tag name: 14px bold white with text shadow
+- Count badge: small pill below the name showing "N contacts"
 
-### Position save/restore for toggle
-- `preLayoutPositions` ref stores `Map<string, {x, y}>` captured right before `computeSolarLayout` runs
-- On reset: iterate the map, call `updateNodePosition` for each, clear sun nodes
+### AI prompt logic change
+```text
+IF userPrompt is non-empty:
+  system = "You are a relationship analyst. ONLY suggest connections that match
+            this specific user request: '{userPrompt}'. Do not suggest any
+            connections that don't directly relate to this instruction.
+            Return up to 10 suggestions."
+ELSE:
+  system = (current default prompt -- full AI analysis)
+```
 
-### CSV parsing approach
-- Read file as text using `FileReader`
-- Split by newlines, handle quoted fields (LinkedIn uses quotes for fields with commas)
-- Skip header row, map columns by index based on known LinkedIn CSV format
-- Validate: skip rows without a name
-- Batch insert using existing `addContact` store method (sequential to avoid race conditions)
+### Position persistence fix
+- `updateNodePosition` becomes async with awaited Supabase call
+- `buildNodes` fallback changes from `Math.random() * 600 - 300` to `(index % 10) * 150 - 750` for x and `Math.floor(index / 10) * 150 - 300` for y
 
-### AI prompt integration
-- The `userPrompt` string is appended to the system prompt: "Additional user instruction: {userPrompt}"
-- If empty/absent, behavior is unchanged from current implementation
+### Files changed
+- **Modified**: `src/components/mindmap/TagSunNode.tsx` -- larger, more visual sun nodes
+- **Modified**: `src/components/mindmap/MindMapCanvas.tsx` -- adjusted sun offset, deterministic fallback positions
+- **Modified**: `src/index.css` -- sun rotation keyframes
+- **Modified**: `supabase/functions/ai-connections/index.ts` -- prompt-only vs full auto logic
+- **Modified**: `src/stores/contactStore.ts` -- await position saves
 
-### Files to create/modify
-- **Modified**: `src/utils/solarLayout.ts` -- fix radius calculations
-- **Modified**: `src/components/mindmap/MindMapCanvas.tsx` -- toggle logic with position save/restore
-- **Modified**: `src/components/mindmap/MindMapControls.tsx` -- toggle UI, AI prompt textbox
-- **Modified**: `supabase/functions/ai-connections/index.ts` -- accept userPrompt
-- **Created**: `src/components/contact/CSVImportDialog.tsx` -- CSV import dialog
-- **Modified**: `src/pages/MapPage.tsx` -- add CSV import button
