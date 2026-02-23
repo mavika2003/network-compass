@@ -82,8 +82,8 @@ const ContactDrawer = () => {
   };
 
   const initials = contact.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
-  const primaryTag = contact.categoryTags[0] || 'Default';
-  const catColor = CATEGORY_COLORS[primaryTag] || CATEGORY_COLORS.Default;
+  const primaryTag = contact.categoryTags[0];
+  const catColor = (primaryTag && CATEGORY_COLORS[primaryTag]) || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
 
   const strengthColor =
     contact.relationshipStrength >= 80 ? 'hsl(var(--nm-green))' :

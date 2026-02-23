@@ -10,7 +10,7 @@ const TagPills = ({ tags, size = 'sm', onRemove }: TagPillsProps) => {
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map((tag) => {
-        const cat = CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default;
+        const cat = CATEGORY_COLORS[tag] || { color: 'hsl(215 16% 45%)', glow: 'var(--glow-primary)' };
         return (
           <span
             key={tag}
