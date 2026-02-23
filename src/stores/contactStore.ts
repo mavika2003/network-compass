@@ -165,11 +165,11 @@ export const useContactStore = create<ContactStore>((set, get) => ({
 
   clearFilters: () => set({ activeFilters: [] }),
 
-  updateNodePosition: (id, x, y) => {
+  updateNodePosition: async (id, x, y) => {
     set((state) => ({
       contacts: state.contacts.map((c) => c.id === id ? { ...c, nodePositionX: x, nodePositionY: y } : c),
     }));
-    supabase.from('contacts').update({ node_position_x: x, node_position_y: y } as any).eq('id', id);
+    await supabase.from('contacts').update({ node_position_x: x, node_position_y: y } as any).eq('id', id);
   },
 
   setPendingConnection: (conn) => set({ pendingConnection: conn }),

@@ -124,7 +124,7 @@ const MindMapCanvas = () => {
     return Array.from(sunPositions.entries()).map(([tag, pos]) => ({
       id: `sun-${tag}`,
       type: 'tagSun',
-      position: { x: pos.x - 45, y: pos.y - 45 },
+      position: { x: pos.x - 70, y: pos.y - 70 },
       draggable: false,
       selectable: false,
       data: { tag, contactCount: groups.get(tag) || 0 } satisfies TagSunNodeData,
@@ -134,10 +134,10 @@ const MindMapCanvas = () => {
   const buildNodes = useCallback(
     (): Node[] => [
       ...buildSunNodes(),
-      ...contacts.map((c) => ({
+      ...contacts.map((c, i) => ({
         id: c.id,
         type: 'contact',
-        position: { x: c.nodePositionX ?? Math.random() * 600 - 300, y: c.nodePositionY ?? Math.random() * 400 - 200 },
+        position: { x: c.nodePositionX ?? (i % 10) * 150 - 750, y: c.nodePositionY ?? Math.floor(i / 10) * 150 - 300 },
         data: {
           contactId: c.id,
           name: c.name,

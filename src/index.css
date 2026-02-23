@@ -145,3 +145,12 @@
 @keyframes dashmove {
   to { stroke-dashoffset: -9; }
 }
+
+@keyframes sun-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sun-rotate-ring {
+  animation: sun-rotate 20s linear infinite;
+}

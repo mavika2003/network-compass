@@ -35,11 +35,13 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a relationship analyst. Given a list of contacts with their tags, companies, job titles, and relationship strengths, suggest meaningful connections between them. Only suggest connections that DON'T already exist. Focus on:
+            content: userPrompt
+              ? `You are a relationship analyst. The user has given you a SPECIFIC instruction for which connections to suggest. ONLY suggest connections that directly match this criteria: "${userPrompt}". Do NOT suggest any general connections that don't relate to this instruction. Only suggest connections that DON'T already exist. Return up to 10 suggestions. Each suggestion must include the relationship type: friend, colleague, mutual, or mentor.`
+              : `You are a relationship analyst. Given a list of contacts with their tags, companies, job titles, and relationship strengths, suggest meaningful connections between them. Only suggest connections that DON'T already exist. Focus on:
 1. Contacts sharing the same tags (most important)
 2. Contacts at the same company
 3. Contacts with complementary roles (e.g. mentor-mentee)
-Return up to 10 suggestions. Each suggestion must include the relationship type: friend, colleague, mutual, or mentor.${userPrompt ? `\n\nAdditional user instruction: ${userPrompt}` : ''}`
+Return up to 10 suggestions. Each suggestion must include the relationship type: friend, colleague, mutual, or mentor.`
           },
           {
             role: "user",
