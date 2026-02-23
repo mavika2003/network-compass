@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { CATEGORY_COLORS } from '@/types';
 import { useContactStore } from '@/stores/contactStore';
@@ -36,7 +36,11 @@ const ContactNode = memo(({ data }: NodeProps) => {
       style={{ opacity: dimmed ? 0.15 : 1 }}
       onClick={() => selectContact(contactId)}
     >
-      <Handle type="target" position={Position.Top} className="!bg-transparent !border-0 !w-0 !h-0" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!w-3 !h-3 !rounded-full !border-2 !border-border !bg-secondary opacity-0 group-hover:opacity-100 !transition-opacity"
+      />
       {nodeData.avatarUrl ? (
         <img
           src={nodeData.avatarUrl}
@@ -72,7 +76,11 @@ const ContactNode = memo(({ data }: NodeProps) => {
           {company}
         </span>
       )}
-      <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0 !w-0 !h-0" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        className="!w-3 !h-3 !rounded-full !border-2 !border-border !bg-secondary opacity-0 group-hover:opacity-100 !transition-opacity"
+      />
     </div>
   );
 });

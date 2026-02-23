@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -8,21 +8,79 @@ import {
   useEdgesState,
   type Node,
   type Edge,
+  type Connection,
   BackgroundVariant,
+  EdgeLabelRenderer,
+  BaseEdge,
+  getBezierPath,
+  type EdgeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ContactNode from './ContactNode';
+import ConnectionTypeDialog from './ConnectionTypeDialog';
 import MindMapControls from './MindMapControls';
 import { useContactStore } from '@/stores/contactStore';
 import { CATEGORY_COLORS } from '@/types';
 import type { ContactNodeData } from './ContactNode';
+import { X } from 'lucide-react';
+
+const EDGE_COLORS: Record<string, string> = {
+  friend: 'hsl(330 81% 60%)',
+  colleague: 'hsl(217 91% 60%)',
+  mutual: 'hsl(215 16% 45%)',
+  mentor: 'hsl(271 91% 65%)',
+};
+
+function RelationshipEdge(props: EdgeProps) {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props;
+  const deleteConnection = useContactStore((s) => s.deleteConnection);
+  const relType = (data?.relationshipType as string) || 'mutual';
+  const isHighPriority = data?.isHighPriority as boolean;
+  const color = EDGE_COLORS[relType] || EDGE_COLORS.mutual;
+
+  const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{
+          stroke: color,
+          strokeWidth: 2,
+          strokeDasharray: isHighPriority ? '6 3' : undefined,
+          animation: isHighPriority ? 'dashmove 0.5s linear infinite' : undefined,
+        }}
+      />
+      <EdgeLabelRenderer>
+        <div
+          className="nodrag nopan pointer-events-auto absolute opacity-0 hover:opacity-100 transition-opacity"
+          style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}
+        >
+          <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-border bg-card text-foreground shadow-lg">
+            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+            {relType.charAt(0).toUpperCase() + relType.slice(1)}
+            <button
+              onClick={(e) => { e.stopPropagation(); deleteConnection(id.replace('conn-', '')); }}
+              className="ml-1 text-muted-foreground hover:text-destructive"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+}
 
 const nodeTypes = { contact: ContactNode };
+const edgeTypes = { relationship: RelationshipEdge };
 
 const MindMapCanvas = () => {
   const contacts = useContactStore((s) => s.contacts);
   const connections = useContactStore((s) => s.connections);
   const updateNodePosition = useContactStore((s) => s.updateNodePosition);
+  const setPendingConnection = useContactStore((s) => s.setPendingConnection);
 
   const buildNodes = useCallback(
     (): Node[] =>
@@ -45,52 +103,61 @@ const MindMapCanvas = () => {
 
   const buildEdges = useCallback(
     (): Edge[] =>
-      connections.map((conn, i) => ({
-        id: `e-${i}`,
-        source: conn.contactAId,
-        target: conn.contactBId,
-        animated: false,
-        style: { stroke: 'hsl(240 14% 20%)', strokeWidth: 1.5 },
-      })),
-    [connections]
+      connections.map((conn) => {
+        const contactA = contacts.find((c) => c.id === conn.contactAId);
+        const contactB = contacts.find((c) => c.id === conn.contactBId);
+        const isHighPriority = (contactA?.relationshipStrength ?? 0) > 80 && (contactB?.relationshipStrength ?? 0) > 80;
+
+        return {
+          id: `conn-${conn.id}`,
+          source: conn.contactAId,
+          target: conn.contactBId,
+          type: 'relationship',
+          data: { relationshipType: conn.relationshipType, isHighPriority },
+        };
+      }),
+    [connections, contacts]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(buildNodes());
   const [edges, setEdges, onEdgesChange] = useEdgesState(buildEdges());
 
-  // Sync nodes when contacts change (e.g. after reload/fetch)
-  useEffect(() => {
-    setNodes(buildNodes());
-  }, [contacts, buildNodes, setNodes]);
-
-  useEffect(() => {
-    setEdges(buildEdges());
-  }, [connections, buildEdges, setEdges]);
+  useEffect(() => { setNodes(buildNodes()); }, [contacts, buildNodes, setNodes]);
+  useEffect(() => { setEdges(buildEdges()); }, [connections, contacts, buildEdges, setEdges]);
 
   const onNodeDragStop = useCallback(
-    (_: any, node: Node) => {
-      updateNodePosition(node.id, node.position.x, node.position.y);
-    },
+    (_: any, node: Node) => { updateNodePosition(node.id, node.position.x, node.position.y); },
     [updateNodePosition]
+  );
+
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (connection.source && connection.target && connection.source !== connection.target) {
+        setPendingConnection({ source: connection.source, target: connection.target });
+      }
+    },
+    [setPendingConnection]
   );
 
   const getNodeColor = useCallback((n: Node) => {
     const data = n.data as unknown as ContactNodeData;
     const tag = data.categoryTags?.[0] || 'Default';
-    const cat = CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default;
-    return cat.color;
+    return (CATEGORY_COLORS[tag] || CATEGORY_COLORS.Default).color;
   }, []);
 
   return (
     <div className="w-full h-full relative">
       <MindMapControls />
+      <ConnectionTypeDialog />
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
+        onConnect={onConnect}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.3 }}
         minZoom={0.3}
@@ -99,13 +166,7 @@ const MindMapCanvas = () => {
       >
         <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="hsl(240 14% 12%)" />
         <Controls showInteractive={false} />
-        <MiniMap
-          nodeStrokeWidth={3}
-          nodeColor={getNodeColor}
-          maskColor="hsl(240 20% 4% / 0.8)"
-          pannable
-          zoomable
-        />
+        <MiniMap nodeStrokeWidth={3} nodeColor={getNodeColor} maskColor="hsl(240 20% 4% / 0.8)" pannable zoomable />
       </ReactFlow>
     </div>
   );

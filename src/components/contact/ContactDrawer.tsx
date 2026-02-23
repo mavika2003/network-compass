@@ -9,14 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
-import { Mail, Phone, MapPin, Building, Trash2, Bell, Camera, Plus, X, Pencil } from 'lucide-react';
+import { Mail, Phone, MapPin, Building, Trash2, Bell, Camera, Plus, X, Link2 } from 'lucide-react';
 
 const ContactDrawer = () => {
   const drawerOpen = useContactStore((s) => s.drawerOpen);
   const setDrawerOpen = useContactStore((s) => s.setDrawerOpen);
   const selectedContactId = useContactStore((s) => s.selectedContactId);
   const contacts = useContactStore((s) => s.contacts);
+  const connections = useContactStore((s) => s.connections);
   const deleteContact = useContactStore((s) => s.deleteContact);
+  const deleteConnection = useContactStore((s) => s.deleteConnection);
   const updateContact = useContactStore((s) => s.updateContact);
   const tags = useTagStore((s) => s.tags);
   const addTag = useTagStore((s) => s.addTag);
@@ -229,6 +231,48 @@ const ContactDrawer = () => {
               </div>
             )}
           </div>
+
+          {/* Connections */}
+          {(() => {
+            const EDGE_COLORS: Record<string, string> = {
+              friend: 'hsl(var(--nm-pink))',
+              colleague: 'hsl(var(--nm-blue))',
+              mutual: 'hsl(var(--muted-foreground))',
+              mentor: 'hsl(var(--nm-purple))',
+            };
+            const contactConns = connections.filter(
+              (c) => c.contactAId === contact.id || c.contactBId === contact.id
+            );
+            if (contactConns.length === 0) return null;
+            return (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium">Connections</span>
+                </div>
+                <div className="space-y-1.5">
+                  {contactConns.map((conn) => {
+                    const otherId = conn.contactAId === contact.id ? conn.contactBId : conn.contactAId;
+                    const other = contacts.find((c) => c.id === otherId);
+                    if (!other) return null;
+                    const color = EDGE_COLORS[conn.relationshipType] || EDGE_COLORS.mutual;
+                    return (
+                      <div key={conn.id} className="flex items-center justify-between bg-secondary rounded-lg px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                          <span className="text-sm text-foreground">{other.name}</span>
+                          <span className="text-[10px] text-muted-foreground capitalize">{conn.relationshipType}</span>
+                        </div>
+                        <button onClick={() => deleteConnection(conn.id)} className="text-muted-foreground hover:text-destructive">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {contact.notes && (
             <div>
