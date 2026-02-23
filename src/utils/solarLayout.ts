@@ -25,22 +25,31 @@ export function computeSolarLayout(contacts: ContactInput[]): SolarLayoutResult 
     groups.get(tag)!.push(c);
   }
 
-  // Sort groups by size (largest first)
   const sortedGroups = Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length);
   const totalGroups = sortedGroups.length;
 
-  // Arrange suns in a large circle
-  const bigRadius = Math.max(400, totalGroups * 150);
+  // Tighter radius for compact layout
+  const bigRadius = totalGroups <= 1 ? 0 : totalGroups === 2 ? 300 : Math.max(300, totalGroups * 120);
 
   sortedGroups.forEach(([tag, members], groupIdx) => {
-    const angle = (groupIdx / totalGroups) * 2 * Math.PI - Math.PI / 2;
-    const sunX = totalGroups === 1 ? 0 : bigRadius * Math.cos(angle);
-    const sunY = totalGroups === 1 ? 0 : bigRadius * Math.sin(angle);
+    let sunX: number, sunY: number;
+
+    if (totalGroups === 1) {
+      sunX = 0;
+      sunY = 0;
+    } else if (totalGroups === 2) {
+      sunX = groupIdx === 0 ? -bigRadius / 2 : bigRadius / 2;
+      sunY = 0;
+    } else {
+      const angle = (groupIdx / totalGroups) * 2 * Math.PI - Math.PI / 2;
+      sunX = bigRadius * Math.cos(angle);
+      sunY = bigRadius * Math.sin(angle);
+    }
 
     sunPositions.set(tag, { x: sunX, y: sunY });
 
-    // Place contacts in orbit around their sun
-    const orbitRadius = Math.max(140, members.length * 30);
+    // Orbit radius scales with member count, with a healthy minimum
+    const orbitRadius = Math.max(160, members.length * 35);
     members.forEach((contact, i) => {
       const planetAngle = (i / members.length) * 2 * Math.PI - Math.PI / 2;
       contactPositions.set(contact.id, {

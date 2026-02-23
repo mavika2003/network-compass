@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import MindMapCanvas from '@/components/mindmap/MindMapCanvas';
 import ContactDrawer from '@/components/contact/ContactDrawer';
 import ContactForm from '@/components/contact/ContactForm';
+import CSVImportDialog from '@/components/contact/CSVImportDialog';
 import { useContactStore } from '@/stores/contactStore';
 import { useTagStore } from '@/stores/tagStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,7 +29,10 @@ const MapPage = () => {
           <h1 className="text-foreground font-semibold text-sm">Your Network</h1>
           <p className="text-muted-foreground text-xs">{contacts.length} connections</p>
         </div>
-        <ContactForm />
+        <div className="flex items-center gap-2">
+          <CSVImportDialog />
+          <ContactForm />
+        </div>
       </div>
 
       <div className="flex-1">

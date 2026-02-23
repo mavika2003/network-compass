@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -88,8 +88,16 @@ const MindMapCanvas = () => {
   const setPendingConnection = useContactStore((s) => s.setPendingConnection);
   const [solarActive, setSolarActive] = useState(false);
   const [sunPositions, setSunPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+  const preLayoutPositions = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   const applySolarLayout = useCallback(() => {
+    // Save current positions before applying
+    const saved = new Map<string, { x: number; y: number }>();
+    contacts.forEach((c) => {
+      saved.set(c.id, { x: c.nodePositionX ?? 0, y: c.nodePositionY ?? 0 });
+    });
+    preLayoutPositions.current = saved;
+
     const result = computeSolarLayout(contacts);
     result.contactPositions.forEach((pos, id) => {
       updateNodePosition(id, pos.x, pos.y);
@@ -97,6 +105,14 @@ const MindMapCanvas = () => {
     setSunPositions(result.sunPositions);
     setSolarActive(true);
   }, [contacts, updateNodePosition]);
+
+  const resetLayout = useCallback(() => {
+    preLayoutPositions.current.forEach((pos, id) => {
+      updateNodePosition(id, pos.x, pos.y);
+    });
+    setSunPositions(new Map());
+    setSolarActive(false);
+  }, [updateNodePosition]);
 
   const buildSunNodes = useCallback((): Node[] => {
     if (!solarActive) return [];
@@ -182,7 +198,11 @@ const MindMapCanvas = () => {
 
   return (
     <div className="w-full h-full relative">
-      <MindMapControls onSolarLayout={applySolarLayout} />
+      <MindMapControls
+        onSolarLayout={applySolarLayout}
+        onResetLayout={resetLayout}
+        solarActive={solarActive}
+      />
       <ConnectionTypeDialog />
       <ReactFlow
         nodes={nodes}

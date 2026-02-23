@@ -9,7 +9,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { contacts, existingConnections } = await req.json();
+    const { contacts, existingConnections, userPrompt } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -39,7 +39,7 @@ serve(async (req) => {
 1. Contacts sharing the same tags (most important)
 2. Contacts at the same company
 3. Contacts with complementary roles (e.g. mentor-mentee)
-Return up to 10 suggestions. Each suggestion must include the relationship type: friend, colleague, mutual, or mentor.`
+Return up to 10 suggestions. Each suggestion must include the relationship type: friend, colleague, mutual, or mentor.${userPrompt ? `\n\nAdditional user instruction: ${userPrompt}` : ''}`
           },
           {
             role: "user",
