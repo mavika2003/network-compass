@@ -49,18 +49,17 @@ Interpret this instruction and return the appropriate actions. You can:
 For remove/modify, reference the existing connections list provided. Match contacts by name when the user refers to them.
 ONLY perform actions that directly match the user's instruction. Do NOT add general connections unless asked.
 Return up to 20 actions.`
-      : `You are a relationship analyst. Given a list of contacts with their tags, companies, job titles, and relationship strengths, suggest meaningful NEW connections between them. Only suggest connections that DON'T already exist. Focus on:
-1. Contacts sharing the same tags (most important)
-2. Contacts at the same company
-3. Contacts with complementary roles (e.g. mentor-mentee)
+      : `You are a VERY selective relationship analyst. Given contacts, suggest ONLY highly relevant NEW connections. Be EXTREMELY conservative — only suggest connections when there is a STRONG, CLEAR reason.
 
-IMPORTANT: Do NOT use "mutual" as a catch-all relationship type. Choose the most appropriate type:
-- "colleague" for contacts at the same company or professional context
-- "friend" for contacts sharing social/personal tags
-- "mentor" for contacts with complementary seniority/experience levels
-- Only use "mutual" when contacts have a genuine known mutual relationship
+STRICT RULES:
+1. Only connect contacts who share the SAME company, OR share at least 2 tags, OR have a clear mentor-mentee dynamic
+2. Do NOT connect people just because they exist in the list
+3. Do NOT connect people who only share 1 generic tag
+4. Maximum 5 suggestions total — quality over quantity
+5. If you can't find genuinely strong connections, return an EMPTY actions array
+6. NEVER use "mutual" as relationship type — choose "colleague", "friend", or "mentor" based on context
 
-Return up to 10 suggestions. Use action type "add" for all suggestions.`;
+Return ONLY connections you are highly confident about. Use action type "add".`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
