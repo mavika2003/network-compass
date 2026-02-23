@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -17,11 +17,14 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import ContactNode from './ContactNode';
+import TagSunNode from './TagSunNode';
+import type { TagSunNodeData } from './TagSunNode';
 import ConnectionTypeDialog from './ConnectionTypeDialog';
 import MindMapControls from './MindMapControls';
 import { useContactStore } from '@/stores/contactStore';
 import { CATEGORY_COLORS } from '@/types';
 import type { ContactNodeData } from './ContactNode';
+import { computeSolarLayout } from '@/utils/solarLayout';
 import { X } from 'lucide-react';
 
 const EDGE_COLORS: Record<string, string> = {
@@ -47,18 +50,19 @@ function RelationshipEdge(props: EdgeProps) {
         path={edgePath}
         style={{
           stroke: color,
-          strokeWidth: isHighPriority ? 3 : 2.5,
+          strokeWidth: isHighPriority ? 2 : 1.5,
+          strokeOpacity: 0.4,
           strokeDasharray: isHighPriority ? '6 3' : undefined,
           animation: isHighPriority ? 'dashmove 0.5s linear infinite' : undefined,
-          filter: `drop-shadow(0 0 4px ${color})`,
+          filter: `drop-shadow(0 0 2px ${color}40)`,
         }}
       />
       <EdgeLabelRenderer>
         <div
-          className="nodrag nopan pointer-events-auto absolute"
+          className="nodrag nopan pointer-events-auto absolute edge-label-wrapper"
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}
         >
-          <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-border bg-card text-foreground shadow-lg">
+          <div className="edge-label flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-border bg-card text-foreground shadow-lg">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
             {relType.charAt(0).toUpperCase() + relType.slice(1)}
             <button
@@ -74,7 +78,7 @@ function RelationshipEdge(props: EdgeProps) {
   );
 }
 
-const nodeTypes = { contact: ContactNode };
+const nodeTypes = { contact: ContactNode, tagSun: TagSunNode };
 const edgeTypes = { relationship: RelationshipEdge };
 
 const MindMapCanvas = () => {
@@ -82,10 +86,39 @@ const MindMapCanvas = () => {
   const connections = useContactStore((s) => s.connections);
   const updateNodePosition = useContactStore((s) => s.updateNodePosition);
   const setPendingConnection = useContactStore((s) => s.setPendingConnection);
+  const [solarActive, setSolarActive] = useState(false);
+  const [sunPositions, setSunPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
+
+  const applySolarLayout = useCallback(() => {
+    const result = computeSolarLayout(contacts);
+    result.contactPositions.forEach((pos, id) => {
+      updateNodePosition(id, pos.x, pos.y);
+    });
+    setSunPositions(result.sunPositions);
+    setSolarActive(true);
+  }, [contacts, updateNodePosition]);
+
+  const buildSunNodes = useCallback((): Node[] => {
+    if (!solarActive) return [];
+    const groups = new Map<string, number>();
+    contacts.forEach((c) => {
+      const tag = c.categoryTags?.[0] || 'Default';
+      groups.set(tag, (groups.get(tag) || 0) + 1);
+    });
+    return Array.from(sunPositions.entries()).map(([tag, pos]) => ({
+      id: `sun-${tag}`,
+      type: 'tagSun',
+      position: { x: pos.x - 45, y: pos.y - 45 },
+      draggable: false,
+      selectable: false,
+      data: { tag, contactCount: groups.get(tag) || 0 } satisfies TagSunNodeData,
+    }));
+  }, [solarActive, sunPositions, contacts]);
 
   const buildNodes = useCallback(
-    (): Node[] =>
-      contacts.map((c) => ({
+    (): Node[] => [
+      ...buildSunNodes(),
+      ...contacts.map((c) => ({
         id: c.id,
         type: 'contact',
         position: { x: c.nodePositionX ?? Math.random() * 600 - 300, y: c.nodePositionY ?? Math.random() * 400 - 200 },
@@ -99,7 +132,8 @@ const MindMapCanvas = () => {
           relationshipStrength: c.relationshipStrength,
         } satisfies ContactNodeData,
       })),
-    [contacts]
+    ],
+    [contacts, buildSunNodes]
   );
 
   const buildEdges = useCallback(
@@ -123,7 +157,7 @@ const MindMapCanvas = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState(buildNodes());
   const [edges, setEdges, onEdgesChange] = useEdgesState(buildEdges());
 
-  useEffect(() => { setNodes(buildNodes()); }, [contacts, buildNodes, setNodes]);
+  useEffect(() => { setNodes(buildNodes()); }, [contacts, buildNodes, setNodes, solarActive, sunPositions]);
   useEffect(() => { setEdges(buildEdges()); }, [connections, contacts, buildEdges, setEdges]);
 
   const onNodeDragStop = useCallback(
@@ -148,7 +182,7 @@ const MindMapCanvas = () => {
 
   return (
     <div className="w-full h-full relative">
-      <MindMapControls />
+      <MindMapControls onSolarLayout={applySolarLayout} />
       <ConnectionTypeDialog />
       <ReactFlow
         nodes={nodes}

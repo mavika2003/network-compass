@@ -123,6 +123,23 @@
 
 .react-flow__edge-path {
   cursor: pointer;
+  transition: stroke-opacity 0.2s;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-opacity: 1 !important;
+  filter: drop-shadow(0 0 6px currentColor) !important;
+}
+
+/* Edge labels: hidden by default, visible on hover */
+.edge-label-wrapper .edge-label {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.edge-label-wrapper:hover .edge-label,
+.react-flow__edge:hover + .edge-label-wrapper .edge-label {
+  opacity: 1;
 }
 
 @keyframes dashmove {

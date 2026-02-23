@@ -2,12 +2,16 @@ import { useState } from 'react';
 import { useContactStore } from '@/stores/contactStore';
 import { useAuth } from '@/hooks/useAuth';
 import { CATEGORY_COLORS } from '@/types';
-import { X, Sparkles, Loader2 } from 'lucide-react';
+import { X, Sparkles, Loader2, Sun } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
-const MindMapControls = () => {
+interface MindMapControlsProps {
+  onSolarLayout?: () => void;
+}
+
+const MindMapControls = ({ onSolarLayout }: MindMapControlsProps) => {
   const activeFilters = useContactStore((s) => s.activeFilters);
   const toggleFilter = useContactStore((s) => s.toggleFilter);
   const clearFilters = useContactStore((s) => s.clearFilters);
@@ -57,6 +61,9 @@ const MindMapControls = () => {
         title: `${added} connection${added !== 1 ? 's' : ''} created`,
         description: suggested.map((s: any) => s.reason).join(' • '),
       });
+
+      // Auto-trigger solar layout after AI connects
+      onSolarLayout?.();
     } catch (e: any) {
       console.error('AI connect error:', e);
       toast({ title: 'AI connection failed', description: e.message || 'Please try again', variant: 'destructive' });
@@ -75,6 +82,16 @@ const MindMapControls = () => {
       >
         {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
         AI Connect
+      </Button>
+
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={onSolarLayout}
+        className="gap-1.5 border-border bg-card/80 text-foreground hover:bg-secondary"
+      >
+        <Sun className="w-3.5 h-3.5" />
+        Solar Layout
       </Button>
 
       {allTags.map((tag) => {
