@@ -47,14 +47,15 @@ function RelationshipEdge(props: EdgeProps) {
         path={edgePath}
         style={{
           stroke: color,
-          strokeWidth: 2,
+          strokeWidth: isHighPriority ? 3 : 2.5,
           strokeDasharray: isHighPriority ? '6 3' : undefined,
           animation: isHighPriority ? 'dashmove 0.5s linear infinite' : undefined,
+          filter: `drop-shadow(0 0 4px ${color})`,
         }}
       />
       <EdgeLabelRenderer>
         <div
-          className="nodrag nopan pointer-events-auto absolute opacity-0 hover:opacity-100 transition-opacity"
+          className="nodrag nopan pointer-events-auto absolute"
           style={{ transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)` }}
         >
           <div className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border border-border bg-card text-foreground shadow-lg">

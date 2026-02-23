@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.ai-reminders]
 verify_jwt = false
+
+[functions.ai-connections]
+verify_jwt = false
