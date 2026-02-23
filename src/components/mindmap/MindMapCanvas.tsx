@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -24,8 +24,8 @@ const MindMapCanvas = () => {
   const connections = useContactStore((s) => s.connections);
   const updateNodePosition = useContactStore((s) => s.updateNodePosition);
 
-  const initialNodes: Node[] = useMemo(
-    () =>
+  const buildNodes = useCallback(
+    (): Node[] =>
       contacts.map((c) => ({
         id: c.id,
         type: 'contact',
@@ -43,8 +43,8 @@ const MindMapCanvas = () => {
     [contacts]
   );
 
-  const initialEdges: Edge[] = useMemo(
-    () =>
+  const buildEdges = useCallback(
+    (): Edge[] =>
       connections.map((conn, i) => ({
         id: `e-${i}`,
         source: conn.contactAId,
@@ -55,8 +55,17 @@ const MindMapCanvas = () => {
     [connections]
   );
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState(buildNodes());
+  const [edges, setEdges, onEdgesChange] = useEdgesState(buildEdges());
+
+  // Sync nodes when contacts change (e.g. after reload/fetch)
+  useEffect(() => {
+    setNodes(buildNodes());
+  }, [contacts, buildNodes, setNodes]);
+
+  useEffect(() => {
+    setEdges(buildEdges());
+  }, [connections, buildEdges, setEdges]);
 
   const onNodeDragStop = useCallback(
     (_: any, node: Node) => {

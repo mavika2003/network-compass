@@ -1,10 +1,15 @@
+import { useState, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useContactStore } from '@/stores/contactStore';
+import { useTagStore } from '@/stores/tagStore';
+import { useAuth } from '@/hooks/useAuth';
 import { CATEGORY_COLORS } from '@/types';
-import TagPills from './TagPills';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { Mail, Phone, MapPin, Building, Trash2, Bell } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
+import { Mail, Phone, MapPin, Building, Trash2, Bell, Camera, Plus, X, Pencil } from 'lucide-react';
 
 const ContactDrawer = () => {
   const drawerOpen = useContactStore((s) => s.drawerOpen);
@@ -13,19 +18,66 @@ const ContactDrawer = () => {
   const contacts = useContactStore((s) => s.contacts);
   const deleteContact = useContactStore((s) => s.deleteContact);
   const updateContact = useContactStore((s) => s.updateContact);
+  const tags = useTagStore((s) => s.tags);
+  const addTag = useTagStore((s) => s.addTag);
+  const deleteTag = useTagStore((s) => s.deleteTag);
+  const { user } = useAuth();
 
-  const AVAILABLE_TAGS = Object.keys(CATEGORY_COLORS).filter((t) => t !== 'Default');
+  const [newTagName, setNewTagName] = useState('');
+  const [showNewTag, setShowNewTag] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const BUILTIN_TAGS = Object.keys(CATEGORY_COLORS).filter((t) => t !== 'Default');
+  const customTagNames = tags.map((t) => t.name);
+  const ALL_TAGS = [...new Set([...BUILTIN_TAGS, ...customTagNames])];
+
+  const contact = contacts.find((c) => c.id === selectedContactId);
+  if (!contact) return null;
 
   const toggleTag = (tag: string) => {
-    if (!contact) return;
     const newTags = contact.categoryTags.includes(tag)
       ? contact.categoryTags.filter((t) => t !== tag)
       : [...contact.categoryTags, tag];
     updateContact(contact.id, { categoryTags: newTags.length ? newTags : ['Default'] });
   };
 
-  const contact = contacts.find((c) => c.id === selectedContactId);
-  if (!contact) return null;
+  const handleAddNewTag = async () => {
+    if (!newTagName.trim() || !user) return;
+    const name = newTagName.trim();
+    if (!ALL_TAGS.includes(name)) {
+      await addTag(name, `hsl(${Math.floor(Math.random() * 360)} 70% 55%)`, user.id);
+    }
+    const newTags = [...contact.categoryTags.filter((t) => t !== 'Default'), name];
+    updateContact(contact.id, { categoryTags: newTags });
+    setNewTagName('');
+    setShowNewTag(false);
+  };
+
+  const handleDeleteCustomTag = async (tagName: string) => {
+    const tag = tags.find((t) => t.name === tagName);
+    if (tag) await deleteTag(tag.id);
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setUploading(true);
+    const ext = file.name.split('.').pop();
+    const path = `${user.id}/${contact.id}.${ext}`;
+
+    const { error: uploadErr } = await supabase.storage.from('contact-photos').upload(path, file, { upsert: true });
+    if (uploadErr) {
+      toast({ title: 'Upload failed', description: uploadErr.message, variant: 'destructive' });
+      setUploading(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from('contact-photos').getPublicUrl(path);
+    await updateContact(contact.id, { avatarUrl: urlData.publicUrl });
+    toast({ title: 'Photo updated!' });
+    setUploading(false);
+  };
 
   const initials = contact.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
   const primaryTag = contact.categoryTags[0] || 'Default';
@@ -41,50 +93,101 @@ const ContactDrawer = () => {
       <SheetContent className="bg-card border-border w-[380px] overflow-y-auto">
         <SheetHeader className="pb-4">
           <div className="flex items-center gap-4">
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-foreground shrink-0"
-              style={{
-                background: `linear-gradient(135deg, ${catColor.color}, hsl(var(--nm-elevated)))`,
-                boxShadow: `0 0 20px ${catColor.color}30`,
-              }}
-            >
-              {initials}
+            <div className="relative group">
+              {contact.avatarUrl ? (
+                <img
+                  src={contact.avatarUrl}
+                  alt={contact.name}
+                  className="w-16 h-16 rounded-full object-cover"
+                  style={{ boxShadow: `0 0 20px ${catColor.color}30`, border: `2px solid ${catColor.color}60` }}
+                />
+              ) : (
+                <div
+                  className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold text-foreground"
+                  style={{
+                    background: `linear-gradient(135deg, ${catColor.color}, hsl(var(--nm-elevated)))`,
+                    boxShadow: `0 0 20px ${catColor.color}30`,
+                  }}
+                >
+                  {initials}
+                </div>
+              )}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+              >
+                <Camera className="w-5 h-5 text-foreground" />
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
             </div>
             <div>
               <SheetTitle className="text-foreground text-lg">{contact.name}</SheetTitle>
               {contact.jobTitle && (
                 <p className="text-sm text-muted-foreground">{contact.jobTitle}{contact.company ? ` at ${contact.company}` : ''}</p>
               )}
+              {uploading && <p className="text-xs text-primary">Uploading...</p>}
             </div>
           </div>
         </SheetHeader>
 
         <div className="space-y-6 mt-2">
+          {/* Tags with create & delete */}
           <div>
-            <span className="text-xs text-muted-foreground font-medium mb-2 block">Tags</span>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground font-medium">Tags</span>
+              <button onClick={() => setShowNewTag(!showNewTag)} className="text-primary hover:text-primary/80">
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {showNewTag && (
+              <div className="flex gap-2 mb-2">
+                <Input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="New tag name"
+                  className="bg-secondary border-border h-7 text-xs"
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddNewTag()}
+                />
+                <Button size="sm" onClick={handleAddNewTag} className="h-7 text-xs px-2">Add</Button>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-1.5">
-              {AVAILABLE_TAGS.map((tag) => {
+              {ALL_TAGS.map((tag) => {
                 const active = contact.categoryTags.includes(tag);
                 const cat = CATEGORY_COLORS[tag];
+                const customTag = tags.find((t) => t.name === tag);
+                const color = cat?.color || customTag?.color || 'hsl(var(--primary))';
+                const isCustom = !BUILTIN_TAGS.includes(tag);
                 return (
-                  <button
-                    key={tag}
-                    onClick={() => toggleTag(tag)}
-                    className="px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all border cursor-pointer"
-                    style={{
-                      backgroundColor: active ? `${cat.color}30` : 'transparent',
-                      borderColor: active ? cat.color : 'hsl(var(--border))',
-                      color: active ? cat.color : 'hsl(var(--muted-foreground))',
-                    }}
-                  >
-                    {tag}
-                  </button>
+                  <div key={tag} className="relative group/tag">
+                    <button
+                      onClick={() => toggleTag(tag)}
+                      className="px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all border cursor-pointer"
+                      style={{
+                        backgroundColor: active ? `${color}30` : 'transparent',
+                        borderColor: active ? color : 'hsl(var(--border))',
+                        color: active ? color : 'hsl(var(--muted-foreground))',
+                      }}
+                    >
+                      {tag}
+                    </button>
+                    {isCustom && (
+                      <button
+                        onClick={() => handleDeleteCustomTag(tag)}
+                        className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-[8px] opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                      >
+                        <X className="w-2 h-2" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Editable Priority Score */}
+          {/* Priority Score */}
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs text-muted-foreground font-medium">Priority Score</span>

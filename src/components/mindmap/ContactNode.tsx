@@ -37,19 +37,33 @@ const ContactNode = memo(({ data }: NodeProps) => {
       onClick={() => selectContact(contactId)}
     >
       <Handle type="target" position={Position.Top} className="!bg-transparent !border-0 !w-0 !h-0" />
-      <div
-        className={`rounded-full flex items-center justify-center font-semibold text-foreground transition-all duration-200 group-hover:scale-110 ${isTop ? 'node-pulse node-float' : ''}`}
-        style={{
-          width: size,
-          height: size,
-          fontSize: isTop ? 20 : 16,
-          background: `linear-gradient(135deg, ${catColor.color}, hsl(var(--nm-elevated)))`,
-          boxShadow: `0 0 ${isTop ? 20 : 10}px ${catColor.color}40`,
-          border: `2px solid ${catColor.color}60`,
-        }}
-      >
-        {initials}
-      </div>
+      {nodeData.avatarUrl ? (
+        <img
+          src={nodeData.avatarUrl}
+          alt={name}
+          className={`rounded-full object-cover transition-all duration-200 group-hover:scale-110 ${isTop ? 'node-pulse node-float' : ''}`}
+          style={{
+            width: size,
+            height: size,
+            boxShadow: `0 0 ${isTop ? 20 : 10}px ${catColor.color}40`,
+            border: `2px solid ${catColor.color}60`,
+          }}
+        />
+      ) : (
+        <div
+          className={`rounded-full flex items-center justify-center font-semibold text-foreground transition-all duration-200 group-hover:scale-110 ${isTop ? 'node-pulse node-float' : ''}`}
+          style={{
+            width: size,
+            height: size,
+            fontSize: isTop ? 20 : 16,
+            background: `linear-gradient(135deg, ${catColor.color}, hsl(var(--nm-elevated)))`,
+            boxShadow: `0 0 ${isTop ? 20 : 10}px ${catColor.color}40`,
+            border: `2px solid ${catColor.color}60`,
+          }}
+        >
+          {initials}
+        </div>
+      )}
       <span className="text-xs font-medium text-foreground max-w-[80px] truncate text-center">
         {name}
       </span>

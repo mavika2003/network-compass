@@ -3,6 +3,7 @@ import MindMapCanvas from '@/components/mindmap/MindMapCanvas';
 import ContactDrawer from '@/components/contact/ContactDrawer';
 import ContactForm from '@/components/contact/ContactForm';
 import { useContactStore } from '@/stores/contactStore';
+import { useTagStore } from '@/stores/tagStore';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
 
@@ -10,17 +11,18 @@ const MapPage = () => {
   const contacts = useContactStore((s) => s.contacts);
   const loading = useContactStore((s) => s.loading);
   const fetchContacts = useContactStore((s) => s.fetchContacts);
+  const fetchTags = useTagStore((s) => s.fetchTags);
   const { user } = useAuth();
 
   useEffect(() => {
     if (user) {
       fetchContacts(user.id);
+      fetchTags(user.id);
     }
-  }, [user, fetchContacts]);
+  }, [user, fetchContacts, fetchTags]);
 
   return (
     <div className="h-full flex flex-col">
-      {/* Top bar */}
       <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-card/50 backdrop-blur-sm shrink-0">
         <div>
           <h1 className="text-foreground font-semibold text-sm">Your Network</h1>
@@ -29,7 +31,6 @@ const MapPage = () => {
         <ContactForm />
       </div>
 
-      {/* Map */}
       <div className="flex-1">
         {loading ? (
           <div className="w-full h-full flex items-center justify-center">
