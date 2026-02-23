@@ -122,6 +122,9 @@
 }
 
 .react-flow__edge-path {
-  stroke: hsl(240 14% 20%) !important;
-  stroke-width: 1.5 !important;
+  cursor: pointer;
+}
+
+@keyframes dashmove {
+  to { stroke-dashoffset: -9; }
 }

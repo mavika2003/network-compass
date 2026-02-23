@@ -23,9 +23,17 @@ interface Contact {
   createdAt: string;
 }
 
+interface ConnectionData {
+  id: string;
+  contactAId: string;
+  contactBId: string;
+  relationshipType: string;
+}
+
 interface ContactStore {
   contacts: Contact[];
-  connections: { id: string; contactAId: string; contactBId: string; relationshipType: string }[];
+  connections: ConnectionData[];
+  pendingConnection: { source: string; target: string } | null;
   selectedContactId: string | null;
   drawerOpen: boolean;
   activeFilters: string[];
@@ -39,6 +47,9 @@ interface ContactStore {
   toggleFilter: (tag: string) => void;
   clearFilters: () => void;
   updateNodePosition: (id: string, x: number, y: number) => void;
+  setPendingConnection: (conn: { source: string; target: string } | null) => void;
+  addConnection: (userId: string, contactAId: string, contactBId: string, relationshipType: string) => Promise<void>;
+  deleteConnection: (connectionId: string) => Promise<void>;
 }
 
 const mapRow = (row: any): Contact => ({
@@ -65,6 +76,7 @@ const mapRow = (row: any): Contact => ({
 export const useContactStore = create<ContactStore>((set, get) => ({
   contacts: [],
   connections: [],
+  pendingConnection: null,
   selectedContactId: null,
   drawerOpen: false,
   activeFilters: [],
@@ -154,10 +166,38 @@ export const useContactStore = create<ContactStore>((set, get) => ({
   clearFilters: () => set({ activeFilters: [] }),
 
   updateNodePosition: (id, x, y) => {
-    // Optimistic update, then persist
     set((state) => ({
       contacts: state.contacts.map((c) => c.id === id ? { ...c, nodePositionX: x, nodePositionY: y } : c),
     }));
     supabase.from('contacts').update({ node_position_x: x, node_position_y: y } as any).eq('id', id);
+  },
+
+  setPendingConnection: (conn) => set({ pendingConnection: conn }),
+
+  addConnection: async (userId, contactAId, contactBId, relationshipType) => {
+    const { data, error } = await supabase.from('connections').insert({
+      user_id: userId,
+      contact_a_id: contactAId,
+      contact_b_id: contactBId,
+      relationship_type: relationshipType,
+    }).select().single();
+
+    if (data) {
+      set((state) => ({
+        connections: [...state.connections, {
+          id: data.id,
+          contactAId: data.contact_a_id,
+          contactBId: data.contact_b_id,
+          relationshipType: data.relationship_type || 'mutual',
+        }],
+      }));
+    }
+  },
+
+  deleteConnection: async (connectionId) => {
+    await supabase.from('connections').delete().eq('id', connectionId);
+    set((state) => ({
+      connections: state.connections.filter((c) => c.id !== connectionId),
+    }));
   },
 }));
