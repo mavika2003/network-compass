@@ -273,6 +273,30 @@ export type Database = {
           },
         ]
       }
+      shared_tags: {
+        Row: {
+          created_at: string
+          id: string
+          owner_id: string
+          shared_with_id: string
+          tag_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          owner_id: string
+          shared_with_id: string
+          tag_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          owner_id?: string
+          shared_with_id?: string
+          tag_name?: string
+        }
+        Relationships: []
+      }
       tags: {
         Row: {
           ai_generated: boolean | null
@@ -300,12 +324,64 @@ export type Database = {
         }
         Relationships: []
       }
+      user_connections: {
+        Row: {
+          created_at: string
+          id: string
+          requester_id: string
+          responder_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          requester_id: string
+          responder_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          requester_id?: string
+          responder_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_shared_contacts: {
+        Args: { owner_id: string; viewer_id: string }
+        Returns: {
+          avatar_url: string
+          category_tags: string[]
+          company: string
+          email: string
+          id: string
+          job_title: string
+          location: string
+          name: string
+        }[]
+      }
+      get_visible_posts: {
+        Args: { viewer_id: string }
+        Returns: {
+          author_avatar: string
+          author_name: string
+          content: string
+          created_at: string
+          expires_at: string
+          id: string
+          image_url: string
+          location: string
+          post_type: string
+          user_id: string
+          visibility_tags: string[]
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
