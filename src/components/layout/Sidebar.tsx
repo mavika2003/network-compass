@@ -1,11 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Map, MessageSquare, Search, Bell, User, LogOut } from 'lucide-react';
+import { Map, MessageSquare, Search, Bell, User, LogOut, Users } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import AIContactInput from '@/components/ai/AIContactInput';
 
 const navItems = [
   { path: '/', icon: Map, label: 'Mind Map' },
   { path: '/feed', icon: MessageSquare, label: 'Feed' },
+  { path: '/network', icon: Users, label: 'Network' },
   { path: '/search', icon: Search, label: 'Search' },
   { path: '/reminders', icon: Bell, label: 'Reminders' },
   { path: '/profile', icon: User, label: 'Profile' },

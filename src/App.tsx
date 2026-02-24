@@ -11,6 +11,7 @@ import FeedPage from "./pages/FeedPage";
 import SearchPage from "./pages/SearchPage";
 import RemindersPage from "./pages/RemindersPage";
 import ProfilePage from "./pages/ProfilePage";
+import NetworkPage from "./pages/NetworkPage";
 import AuthPage from "./pages/AuthPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -82,6 +83,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<MapPage />} />
               <Route path="/feed" element={<FeedPage />} />
+              <Route path="/network" element={<NetworkPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
               <Route path="/profile" element={<ProfilePage />} />
