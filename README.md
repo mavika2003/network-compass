@@ -1,73 +1,166 @@
-# Welcome to your Lovable project
+# 🧠 NetMind  
+## The AI-Powered Relationship Operating System
 
-## Project info
+NetMind is a next-generation social intelligence platform that transforms how people organize, visualize, and grow their real-world relationships.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Designed for Gen-Z and young professionals, NetMind merges AI, voice interaction, and interactive graph visualization into a single powerful experience.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## 🚀 What Makes NetMind Different?
 
-**Use Lovable**
+Most platforms treat connections as lists.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+**NetMind treats them as a living network.**
 
-Changes made via Lovable will be committed automatically to this repo.
+Instead of scrolling through contacts, users explore an intelligent mind map of their relationships — dynamically organized, searchable, and enhanced by AI.
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+# 🌟 Core Features
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 1️⃣ Interactive Mind Map Interface
 
-Follow these steps:
+- Graph-native visualization of your entire network  
+- Zoom, drag, cluster, filter  
+- Instantly see relationship patterns  
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+---
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 2️⃣ Voice-First Relationship Logging
 
-# Step 3: Install the necessary dependencies.
-npm i
+- Add contacts by speaking naturally  
+- AI extracts names, tags, location, context  
+- Zero typing friction  
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+---
 
-**Edit a file directly in GitHub**
+## 3️⃣ AI Categorization & Tagging
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- Automatically generates categories (Founder, Student, NYC, etc.)  
+- Smart relationship grouping  
+- Suggests strength and priority  
 
-**Use GitHub Codespaces**
+---
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 4️⃣ Context & Timeline Tracking
 
-## What technologies are used for this project?
+- Track where and when you met someone  
+- Event-based relationship memory  
+- Follow-up reminders  
 
-This project is built with:
+---
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 5️⃣ Multi-Modal Input
 
-## How can I deploy this project?
+Supports:
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+- 🎙 Voice  
+- ✍️ Manual Entry  
+- 📸 Photo Upload  
+- 📇 Contact Import  
 
-## Can I connect a custom domain to my Lovable project?
+---
 
-Yes, you can!
+## 6️⃣ Intelligent Network Search
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Ask things like:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- "Who do I know in NYC?"
+- "Founders I met this year"
+- "Girls interested in AI"
+
+Get instant, structured results.
+
+---
+
+## 7️⃣ Selective Social Posting
+
+- Post content  
+- Choose visibility based on tags  
+
+Examples:
+
+- Only girls  
+- Only founders  
+- Only NYC  
+
+Privacy-first, tag-based visibility.
+
+---
+
+## 8️⃣ Real-Time Relationship Intelligence
+
+- Smart reminders  
+- Reconnection suggestions  
+- Cluster detection  
+- Relationship strength tracking  
+
+---
+
+## 9️⃣ Personalization Engine
+
+NetMind learns:
+
+- Who matters most  
+- Who you interact with  
+- Your social patterns  
+
+And adapts the experience accordingly.
+
+---
+
+# 🔒 Privacy & Security
+
+- Supabase-powered secure backend  
+- Row-Level Security enforced  
+- User data fully isolated  
+- No data resale  
+- No cross-account inference  
+
+---
+
+# 🛠 Tech Stack
+
+## Frontend
+
+- Next.js  
+- TypeScript  
+- TailwindCSS  
+- React Flow  
+
+## Backend
+
+- Supabase (PostgreSQL + Auth + Storage)  
+- Realtime enabled  
+
+## AI Layer
+
+- OpenAI (categorization, assistant)  
+- ElevenLabs (voice processing)  
+
+---
+
+# 🎯 Target Users
+
+## Primary
+
+- Teenagers  
+- Students  
+- Young professionals  
+
+## Also Ideal For
+
+- Founders  
+- Event networkers  
+- Social connectors  
+
+---
+
+# 🧠 Vision
+
+NetMind is building the world’s first:
+
+## AI-Native Social Relationship Layer
+
+A second brain — but for people.
